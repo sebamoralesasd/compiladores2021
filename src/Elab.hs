@@ -22,7 +22,7 @@ elab = elab' []
 
 elab' :: [Name] -> NTerm -> Term
 elab' env (V p v) =
-  -- Tenemos que hver si la variable es Global o es un nombre local
+  -- Tenemos que ver si la variable es Global o es un nombre local
   -- En env llevamos la lista de nombres locales.
   if v `elem` env 
     then  V p (Free v)
