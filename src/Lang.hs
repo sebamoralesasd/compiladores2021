@@ -21,6 +21,13 @@ module Lang where
 import           Common                         ( Pos )
 import           Data.List.Extra                ( nubSort )
 
+-- | AST superficial de tipos
+data STy =  
+      SNatTy
+    | SFunTy STy STy
+    | STypeSinonym Name STy
+    deriving (Show,Eq)
+
 -- | AST de Tipos
 data Ty =
       NatTy
@@ -43,6 +50,25 @@ data Decl a = Decl
   }
   deriving (Show, Functor)
 
+-- TODO: Cambiar a STy e implementar el desugaring de tipos
+type Binder = (Name, Ty)
+-- | AST de los términos con azúcar sintáctico. 
+data STm info var =
+    SV info var
+  | SConst info Const
+  | SLam info [Binder] (STm info var)
+  | SApp info (STm info var) (STm info var)
+-- TODO: agregar un SPrintU
+-- SPrintU info String
+  | SPrint info String (STm info var)
+  | SBinaryOp info BinaryOp (STm info var) (STm info var)
+  | SFix info Name Ty Name Ty (STm info var)
+  | SIfZ info (STm info var) (STm info var) (STm info var)
+  | SLet info Name Ty (STm info var) (STm info var)
+  | SLetFunction info Bool Name Ty [Binder] (STm info var) (STm info var)
+  deriving (Show, Functor)
+
+
 -- | AST de los términos. 
 --   - info es información extra que puede llevar cada nodo. 
 --       Por ahora solo la usamos para guardar posiciones en el código fuente.
@@ -56,9 +82,10 @@ data Tm info var =
   | BinaryOp info BinaryOp (Tm info var) (Tm info var)
   | Fix info Name Ty Name Ty (Tm info var)
   | IfZ info (Tm info var) (Tm info var) (Tm info var)
-  | Let info Name Ty (Tm info var)  (Tm info var)
+  | Let info Name Ty (Tm info var) (Tm info var)
   deriving (Show, Functor)
 
+type SNTerm = STm Pos Name   -- ^ 'Tm' tiene 'Name's como variables ligadas y libres y globales, guarda posición
 type NTerm = Tm Pos Name   -- ^ 'Tm' tiene 'Name's como variables ligadas y libres y globales, guarda posición
 type Term = Tm Pos Var     -- ^ 'Tm' con índices de De Bruijn como variables ligadas, y nombres para libres y globales, guarda posición
 
