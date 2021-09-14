@@ -34,6 +34,13 @@ desugar (SApp info sterm1 sterm2) =
     term1 <- desugar sterm1
     term2 <- desugar sterm2
     return (App info term1 term2)
+desugar (SPrint info string sterm) =
+  do
+    term <- desugar sterm
+    return (Print info string term)
+desugar (SPrintUnary info string) =
+  do
+    return (Lam info "x" NatTy (Print info string))
 desugar (SBinaryOp info binOp sterm1 sterm2) = 
   do
     term1 <- desugar sterm1
