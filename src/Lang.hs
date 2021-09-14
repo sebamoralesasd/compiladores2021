@@ -58,9 +58,8 @@ data STm info var =
   | SConst info Const
   | SLam info [Binder] (STm info var)
   | SApp info (STm info var) (STm info var)
--- TODO: agregar un SPrintU
--- SPrintU info String
   | SPrint info String (STm info var)
+  | SPrintUnary info String
   | SBinaryOp info BinaryOp (STm info var) (STm info var)
   | SFix info Name Ty Name Ty (STm info var)
   | SIfZ info (STm info var) (STm info var) (STm info var)
