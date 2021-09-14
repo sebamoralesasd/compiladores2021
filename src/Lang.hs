@@ -64,7 +64,8 @@ data STm info var =
   | SFix info Name Ty Name Ty (STm info var)
   | SIfZ info (STm info var) (STm info var) (STm info var)
   | SLet info Name Ty (STm info var) (STm info var)
-  | SLetFunction info Bool Name Ty [Binder] (STm info var) (STm info var)
+  | SLetFunction info Name Ty [Binder] (STm info var) (STm info var)
+  | SLetFunctionRec info Name Ty [Binder] (STm info var) (STm info var)
   deriving (Show, Functor)
 
 

@@ -40,7 +40,7 @@ desugar (SPrint info string sterm) =
     return (Print info string term)
 desugar (SPrintUnary info string) =
   do
-    return (Lam info "x" NatTy (Print info string))
+    return (Lam info "x" NatTy (Print info string (V info "x")))
 desugar (SBinaryOp info binOp sterm1 sterm2) = 
   do
     term1 <- desugar sterm1
@@ -56,19 +56,35 @@ desugar (SIfZ info sterm1 sterm2 sterm3) =
     term2 <- desugar sterm2
     term3 <- desugar sterm3
     return (IfZ info term1 term2 term3)
-desugar (SLetFunction info _ _ _ [] _ _) = failPosFD4 info $ "Lista de binders vacia"
--- caso con fix
-desugar (SLetFunction info True fname fType [(name, ty)] sterm1 sterm2) = undefined
--- caso con paso intermedio
-desugar (SLetFunction info True fname fType binders sterm1 sterm2) = undefined
-desugar (SLetFunction info False fname fType binders sterm1 sterm2) = 
-  desugar (SLet info fname (letFunType fType binders) sterm1 sterm2)
 desugar (SLet info name ty sterm1 sterm2) = 
   do
     term1 <- desugar sterm1
     term2 <- desugar sterm2
     return (Let info name ty term1 term2)
-desugar (SPrint info str sterm) = undefined
+desugar (SLetFunction info _ _ [] _ _) = failPosFD4 info $ "Lista de binders vacia"
+desugar (SLetFunction info fName fReturnType binders sterm1 sterm2) = 
+  desugar (SLet info fName fType sterm1 sterm2)
+  where
+    types = map snd binders
+    fType = createFunType (fReturnType:types) 
+-- caso con fix
+desugar (SLetFunctionRec info _ _ [] _ _) = failPosFD4 info $ "Lista de binders vacia"
+desugar (SLetFunctionRec info fName fReturnType [(name, ty)] sterm1 sterm2) = 
+  do
+    term1 <- desugar sterm1
+    term2 <- desugar sterm2
+    let fixTerm = Fix info fName fType name ty term1 
+      in return (Let info fName fType fixTerm term2)
+    where
+      fType = FunTy ty fReturnType
+-- caso con paso intermedio
+desugar (SLetFunctionRec info fName fReturnType binders sterm1 sterm2) = 
+  desugar (SLetFunctionRec info fName fType [head binders] funToBody sterm2)
+  where
+    types = (map snd binders) ++ [fReturnType]
+    fType = createFunType (tail types)
+    funToBody = SLam info (tail binders) sterm1
+
 -- TODO: revisar
 -- desugar (SApp info sterm1 sterm2) = 
 --   do
@@ -80,10 +96,10 @@ desugar (SPrint info str sterm) = undefined
 --                      return (App info term1 term2)
 -- desugar (SPrint info str) = return Lam info x Nat (Print info str x)
 
-letFunType :: Ty -> [Binder] -> Ty
-letFunType b [] = undefined
-letFunType b [(name, ty)] = ty
-letFunType b ((name, ty) : binders) = FunTy ty (letFunType b binders)
+createFunType :: [Ty] -> Ty
+createFunType [] = undefined
+createFunType [ty] = ty
+createFunType (ty : binders) = FunTy ty (createFunType binders)
 
 -- | 'elab' transforma variables ligadas en índices de de Bruijn
 -- en un término dado. 
