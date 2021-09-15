@@ -86,27 +86,27 @@ typeP = try (do
 const :: P Const
 const = CNat <$> num
 
-printOp :: P NTerm
+printOp :: P SNTerm
 printOp = do
   i <- getPos
   reserved "print"
   str <- option "" stringLiteral
   a <- atom
-  return (Print i str a)
+  return (SPrint i str a)
 
-binary :: String -> BinaryOp -> Assoc -> Operator String () Identity NTerm
-binary s f = Ex.Infix (reservedOp s >> return (BinaryOp NoPos f))
+binary :: String -> BinaryOp -> Assoc -> Operator String () Identity SNTerm
+binary s f = Ex.Infix (reservedOp s >> return (SBinaryOp NoPos f))
 
-table :: [[Operator String () Identity NTerm]]
+table :: [[Operator String () Identity SNTerm]]
 table = [[binary "+" Add Ex.AssocLeft,
           binary "-" Sub Ex.AssocLeft]]
 
-expr :: P NTerm
+expr :: P SNTerm
 expr = Ex.buildExpressionParser table tm
 
-atom :: P NTerm
-atom =     (flip Const <$> const <*> getPos)
-       <|> flip V <$> var <*> getPos
+atom :: P SNTerm
+atom =     (flip SConst <$> const <*> getPos)
+       <|> flip SV <$> var <*> getPos
        <|> parens expr
        <|> printOp
 
@@ -117,22 +117,22 @@ binding = do v <- var
              ty <- typeP
              return (v, ty)
 
-lam :: P NTerm
+lam :: P SNTerm
 lam = do i <- getPos
          reserved "fun"
-         (v,ty) <- parens binding
+         vty <- parens binding
          reservedOp "->"
          t <- expr
-         return (Lam i v ty t)
+         return (SLam i [vty] t)
 
 -- Nota el parser app también parsea un solo atom.
-app :: P NTerm
+app :: P SNTerm
 app = (do i <- getPos
           f <- atom
           args <- many atom
-          return (foldl (App i) f args))
+          return (foldl (SApp i) f args))
 
-ifz :: P NTerm
+ifz :: P SNTerm
 ifz = do i <- getPos
          reserved "ifz"
          c <- expr
@@ -140,18 +140,18 @@ ifz = do i <- getPos
          t <- expr
          reserved "else"
          e <- expr
-         return (IfZ i c t e)
+         return (SIfZ i c t e)
 
-fix :: P NTerm
+fix :: P SNTerm
 fix = do i <- getPos
          reserved "fix"
          (f, fty) <- parens binding
          (x, xty) <- parens binding
          reservedOp "->"
          t <- expr
-         return (Fix i f fty x xty t)
+         return (SFix i f fty x xty t)
 
-letexp :: P NTerm
+letexp :: P SNTerm
 letexp = do
   i <- getPos
   reserved "let"
@@ -160,14 +160,14 @@ letexp = do
   def <- expr
   reserved "in"
   body <- expr
-  return (Let i v ty def body)
+  return (SLet i v ty def body)
 
 -- | Parser de términos
-tm :: P NTerm
+tm :: P SNTerm
 tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp
 
 -- | Parser de declaraciones
-decl :: P (Decl NTerm)
+decl :: P (Decl SNTerm)
 decl = do 
      i <- getPos
      reserved "let"
@@ -177,12 +177,12 @@ decl = do
      return (Decl i v t)
 
 -- | Parser de programas (listas de declaraciones) 
-program :: P [Decl NTerm]
+program :: P [Decl SNTerm]
 program = many decl
 
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
-declOrTm :: P (Either (Decl NTerm) NTerm)
+declOrTm :: P (Either (Decl SNTerm) SNTerm)
 declOrTm =  try (Left <$> decl) <|> (Right <$> expr)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada
@@ -190,7 +190,7 @@ runP :: P a -> String -> String -> Either ParseError a
 runP p s filename = runParser (whiteSpace *> p <* eof) () filename s
 
 --para debugging en uso interactivo (ghci)
-parse :: String -> NTerm
+parse :: String -> SNTerm
 parse s = case runP expr s "" of
             Right t -> t
             Left e -> error ("no parse: " ++ show s)
