@@ -56,20 +56,20 @@ desugar (SIfZ info sterm1 sterm2 sterm3) =
     term2 <- desugar sterm2
     term3 <- desugar sterm3
     return (IfZ info term1 term2 term3)
-desugar (SLet info name ty sterm1 sterm2) = 
+desugar (SLet info name ty [] sterm1 sterm2) = 
   do
     term1 <- desugar sterm1
     term2 <- desugar sterm2
     return (Let info name ty term1 term2)
-desugar (SLetFunction info _ _ [] _ _) = failPosFD4 info $ "Lista de binders vacia"
-desugar (SLetFunction info fName fReturnType binders sterm1 sterm2) = 
-  desugar (SLet info fName fType sterm1 sterm2)
+desugar (SLet info fName fReturnType binders sterm1 sterm2) = 
+  desugar (SLet info fName fType [] funToBody sterm2)
   where
     types = map snd binders
     fType = createFunType (fReturnType:types) 
+    funToBody = SLam info (tail binders) sterm1
 -- caso con fix
-desugar (SLetFunctionRec info _ _ [] _ _) = failPosFD4 info $ "Lista de binders vacia"
-desugar (SLetFunctionRec info fName fReturnType [(name, ty)] sterm1 sterm2) = 
+desugar (SLetRec info _ _ [] _ _) = failPosFD4 info $ "Lista de binders vacia"
+desugar (SLetRec info fName fReturnType [(name, ty)] sterm1 sterm2) = 
   do
     term1 <- desugar sterm1
     term2 <- desugar sterm2
@@ -78,10 +78,10 @@ desugar (SLetFunctionRec info fName fReturnType [(name, ty)] sterm1 sterm2) =
     where
       fType = FunTy ty fReturnType
 -- caso con paso intermedio
-desugar (SLetFunctionRec info fName fReturnType binders sterm1 sterm2) = 
-  desugar (SLetFunctionRec info fName fType [head binders] funToBody sterm2)
+desugar (SLetRec info fName fReturnType binders sterm1 sterm2) = 
+  desugar (SLetRec info fName fType [head binders] funToBody sterm2)
   where
-    types = (map snd binders) ++ [fReturnType]
+    types = map snd binders ++ [fReturnType]
     fType = createFunType (tail types)
     funToBody = SLam info (tail binders) sterm1
 
