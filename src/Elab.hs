@@ -31,7 +31,7 @@ desugar (SApp info sterm1 sterm2) =
   do
     term2 <- desugar sterm2
     case sterm1 of
-      (SPrintUnary info str) -> return (Print info str term2)
+      (SPrintUnary infoPrint str) -> return (Print infoPrint str term2)
       _ -> do
         term1 <- desugar sterm1
         return (App info term1 term2)
@@ -80,6 +80,7 @@ desugar (SLetRec info fName fReturnType binders sterm1 sterm2) =
     fType = createFunType (tail types)
     funToBody = SLam info (tail binders) sterm1
 
+-- Transforma una lista de tipos [t1 t2 ... tn] en el tipo de funcion t1 -> t2 -> ... -> tn
 createFunType :: [Ty] -> Ty
 createFunType [] = undefined
 createFunType [ty] = ty
