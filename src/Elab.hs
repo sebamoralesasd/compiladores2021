@@ -64,8 +64,8 @@ desugar (SLet info name ty [] sterm1 sterm2) =
 desugar (SLet info fName fReturnType binders sterm1 sterm2) = 
   desugar (SLet info fName fType [] funToBody sterm2)
   where
-    types = map snd binders
-    fType = createFunType (fReturnType:types) 
+    types = map snd binders ++ [fReturnType]
+    fType = createFunType types
     funToBody = SLam info (tail binders) sterm1
 -- caso con fix
 desugar (SLetRec info _ _ [] _ _) = failPosFD4 info $ "Lista de binders vacia"
