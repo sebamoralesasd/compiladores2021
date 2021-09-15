@@ -32,7 +32,7 @@ lexer = Tok.makeTokenParser $
         emptyDef {
          commentLine    = "#",
          reservedNames = ["let", "fun", "fix", "then", "else","in", 
-                           "ifz", "print","Nat"],
+                           "ifz", "print", "Nat", "rec"],
          reservedOpNames = ["->",":","=","+","-"]
         }
 
@@ -91,8 +91,7 @@ printOp = do
   i <- getPos
   reserved "print"
   str <- option "" stringLiteral
-  a <- atom
-  return (SPrint i str a)
+  return (SPrintUnary i str)
 
 binary :: String -> BinaryOp -> Assoc -> Operator String () Identity SNTerm
 binary s f = Ex.Infix (reservedOp s >> return (SBinaryOp NoPos f))
@@ -116,6 +115,17 @@ binding = do v <- var
              reservedOp ":"
              ty <- typeP
              return (v, ty)
+
+multibinding :: P [(Name, Ty)]
+multibinding = 
+  do
+    variables <- many var
+    reservedOp ":"
+    ty <- typeP
+    return (map (\name -> (name, ty)) variables)
+
+binders :: P [(Name, Ty)]
+binders = many (parens (binding <|> multibinding))
 
 lam :: P SNTerm
 lam = do i <- getPos
@@ -155,12 +165,15 @@ letexp :: P SNTerm
 letexp = do
   i <- getPos
   reserved "let"
-  (v,ty) <- parens binding
+  v <- var
+  binders <- binders
+  reservedOp ":"
+  ty <- typeP
   reservedOp "="  
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet i v ty def body)
+  return (SLet i v ty binders def body)
 
 -- | Parser de términos
 tm :: P SNTerm
