@@ -110,22 +110,27 @@ atom =     (flip SConst <$> const <*> getPos)
        <|> printOp
 
 -- parsea un par (variable : tipo)
-binding :: P (Name, Ty)
+binding :: P [(Name, Ty)]
 binding = do v <- var
              reservedOp ":"
              ty <- typeP
-             return (v, ty)
+             return [(v, ty)]
 
+-- x y z ... : \tau
 multibinding :: P [(Name, Ty)]
 multibinding = 
   do
-    variables <- many var
+    variables <- many1 var
     reservedOp ":"
     ty <- typeP
     return (map (\name -> (name, ty)) variables)
 
 binders :: P [(Name, Ty)]
-binders = many (parens (binding <|> multibinding))
+binders = 
+  do 
+    b <- many (parens (binding <|> multibinding))
+    return (concat b)
+
 
 lam :: P SNTerm
 lam = do i <- getPos
@@ -133,7 +138,7 @@ lam = do i <- getPos
          vty <- parens binding
          reservedOp "->"
          t <- expr
-         return (SLam i [vty] t)
+         return (SLam i vty t)
 
 -- Nota el parser app también parsea un solo atom.
 app :: P SNTerm
@@ -155,8 +160,8 @@ ifz = do i <- getPos
 fix :: P SNTerm
 fix = do i <- getPos
          reserved "fix"
-         (f, fty) <- parens binding
-         (x, xty) <- parens binding
+         [(f, fty)] <- parens binding
+         [(x, xty)] <- parens binding
          reservedOp "->"
          t <- expr
          return (SFix i f fty x xty t)
