@@ -32,7 +32,7 @@ lexer = Tok.makeTokenParser $
         emptyDef {
          commentLine    = "#",
          reservedNames = ["let", "fun", "fix", "then", "else","in", 
-                           "ifz", "print", "Nat", "rec"],
+                           "ifz", "print", "Nat", "rec", "type"],
          reservedOpNames = ["->",":","=","+","-"]
         }
 
@@ -207,13 +207,15 @@ tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp <|> letfunexp
 -- | Parser de declaraciones
 decl :: P (Decl SNTerm)
 decl = letrecdecl <|> letfundecl -- <|> vardecl <|> typedecl
--- decl = do 
---      i <- getPos
---      reserved "let"
---      v <- var
---      reservedOp "="
---      t <- expr
---      return (Decl i v t)
+
+typedecl :: P (Decl SNTerm)
+typedecl = do
+  i <- getPos
+  reserved "type"
+  v <- var
+  reservedOp "="
+  ty <- typeP
+  return (Decl i v (SinTy i v ty))
 
 letfundecl :: P (Decl SNTerm)
 letfundecl = do
@@ -225,8 +227,7 @@ letfundecl = do
   ty <- typeP
   reservedOp "="  
   def <- expr
-  let types = map snd bind
-  return (Decl i v (createFunType types) (SLam i bind def))
+  return (Decl i v (SLam i bind def))
 
 letrecdecl :: P (Decl SNTerm)
 letrecdecl = do
@@ -241,16 +242,11 @@ letrecdecl = do
   def <- expr
   case bind of
     [(n, ty)] -> 
-      let types = map snd bind
-          sfixDecl = SFix i v (FunTy ty fty) n ty def
-      in return (Decl i v (createFunType types) sfixDecl)
-    (nty:ntys) ->
-      let typeList = (map snd ntys) ++ [fty]
-          funType = createFunType typeList
-          sLetRecDecl = SLetRec i v funType [nty] def (SLam i bind def)
-      in return (Decl i v funType sLetRecDecl)
-    -- Falta caso []. Sí o sí habría que darle un tipo al Decl?
-    -- Manejo del error?
+      let sfixDecl = SFix i v (FunTy ty fty) n ty def
+      in return (Decl i v sfixDecl)
+    _ -> 
+      let sLetRec = SLetRec i v fty bind def (SLam i bind def)
+      in return (Decl i v sLetRec)
 
 -- | Parser de programas (listas de declaraciones) 
 program :: P [Decl SNTerm]

@@ -15,6 +15,13 @@ import Lang
 import MonadFD4
 import Subst
 
+
+-- | Transforma una lista de tipos [t1 t2 ... tn] en el tipo de funcion t1 -> t2 -> ... -> tn
+createFunType :: [Ty] -> Ty
+createFunType [] = undefined
+createFunType [ty] = ty
+createFunType (ty : binders) = FunTy ty (createFunType binders)
+
 desugar :: MonadFD4 m => SNTerm -> m NTerm
 desugar (SV info var) = return (V info var)
 desugar (SConst info con) = return (Const info con)
@@ -79,6 +86,7 @@ desugar (SLetRec info fName fReturnType binders sterm1 sterm2) =
     types = map snd binders ++ [fReturnType]
     fType = createFunType (tail types)
     funToBody = SLam info (tail binders) sterm1
+desugar (SinTy info name sty) = undefined
 
 -- | 'elab' transforma variables ligadas en índices de de Bruijn
 -- en un término dado.

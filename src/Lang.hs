@@ -21,11 +21,13 @@ module Lang where
 import           Common                         ( Pos )
 import           Data.List.Extra                ( nubSort )
 
+type Name = String
+
 -- | AST superficial de tipos
 data STy =  
       SNatTy
     | SFunTy STy STy
-    | STypeSinonym Name STy
+    | STypeSinonym Name
     deriving (Show,Eq)
 
 -- | AST de Tipos
@@ -33,8 +35,6 @@ data Ty =
       NatTy
     | FunTy Ty Ty
     deriving (Show,Eq)
-
-type Name = String
 
 data Const = CNat Int
   deriving Show
@@ -46,7 +46,6 @@ data BinaryOp = Add | Sub
 data Decl a = Decl
   { declPos  :: Pos
   , declName :: Name
-  , declType :: Ty
   , declBody :: a
   }
   deriving (Show, Functor)
@@ -65,8 +64,8 @@ data STm info var =
   | SIfZ info (STm info var) (STm info var) (STm info var)
   | SLet info Name Ty [Binder] (STm info var) (STm info var)
   | SLetRec info Name Ty [Binder] (STm info var) (STm info var)
+  | SinTy info Name Ty
   deriving (Show, Functor)
-
 
 -- | AST de los términos. 
 --   - info es información extra que puede llevar cada nodo. 
@@ -120,10 +119,3 @@ freeVars tm = nubSort $ go tm [] where
   go (IfZ _ c t e     ) xs = go c $ go t $ go e xs
   go (Const _ _       ) xs = xs
   go (Let _ _ _ e t   ) xs = go e (go t xs)
-
-
--- | Transforma una lista de tipos [t1 t2 ... tn] en el tipo de funcion t1 -> t2 -> ... -> tn
-createFunType :: [Ty] -> Ty
-createFunType [] = undefined
-createFunType [ty] = ty
-createFunType (ty : binders) = FunTy ty (createFunType binders)
