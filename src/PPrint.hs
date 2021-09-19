@@ -170,8 +170,10 @@ render :: Doc AnsiStyle -> String
 render = unpack . renderStrict . layoutSmart defaultLayoutOptions
 
 -- | Pretty printing de declaraciones
+
+-- TODO: agregar tipado de Decl
 ppDecl :: MonadFD4 m => Decl Term -> m String
-ppDecl (Decl p x t) = do 
+ppDecl (Decl p x _ t) = do 
   gdecl <- gets glb
   return (render $ sep [defColor (pretty "let")
                        , name2doc x 

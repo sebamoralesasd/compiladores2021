@@ -80,12 +80,6 @@ desugar (SLetRec info fName fReturnType binders sterm1 sterm2) =
     fType = createFunType (tail types)
     funToBody = SLam info (tail binders) sterm1
 
--- Transforma una lista de tipos [t1 t2 ... tn] en el tipo de funcion t1 -> t2 -> ... -> tn
-createFunType :: [Ty] -> Ty
-createFunType [] = undefined
-createFunType [ty] = ty
-createFunType (ty : binders) = FunTy ty (createFunType binders)
-
 -- | 'elab' transforma variables ligadas en índices de de Bruijn
 -- en un término dado.
 elab :: MonadFD4 m => SNTerm -> m Term

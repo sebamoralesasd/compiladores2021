@@ -1,0 +1,5 @@
+snterm -> term
+Lam (1,11) "z" NatTy (Lam (2,5) "s" (FunTy NatTy (FunTy NatTy NatTy)) (Fix (3,5) "f" (FunTy NatTy NatTy) "n" NatTy (IfZ (4,5) (V (4,11) (Bound 0)) (V (4,18) (Bound 3)) (App (4,23) (App (4,23) (V (4,25) (Bound 2)) (App (4,26) (V (4,28) (Bound 1)) (BinaryOp  Sub (V (4,30) (Bound 0)) (Const (4,32) (CNat 1))))) (BinaryOp  Sub (V (4,37) (Bound 0)) (Const (4,39) (CNat 1)))))))
+
+nterm -> term
+Lam (1,11) "z" NatTy (Lam (2,5) "s" (FunTy NatTy (FunTy NatTy NatTy)) (Fix (3,5) "f" (FunTy NatTy NatTy) "n" NatTy (IfZ (4,5) (V (4,11) (Bound 0)) (V (4,18) (Bound 3)) (App (4,23) (App (4,23) (V (4,25) (Bound 2)) (App (4,26) (V (4,28) (Bound 1)) (BinaryOp  Sub (V (4,30) (Bound 0)) (Const (4,32) (CNat 1))))) (BinaryOp  Sub (V (4,37) (Bound 0)) (Const (4,39) (CNat 1)))))))

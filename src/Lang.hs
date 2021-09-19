@@ -46,6 +46,7 @@ data BinaryOp = Add | Sub
 data Decl a = Decl
   { declPos  :: Pos
   , declName :: Name
+  , declType :: Ty
   , declBody :: a
   }
   deriving (Show, Functor)
@@ -119,3 +120,10 @@ freeVars tm = nubSort $ go tm [] where
   go (IfZ _ c t e     ) xs = go c $ go t $ go e xs
   go (Const _ _       ) xs = xs
   go (Let _ _ _ e t   ) xs = go e (go t xs)
+
+
+-- | Transforma una lista de tipos [t1 t2 ... tn] en el tipo de funcion t1 -> t2 -> ... -> tn
+createFunType :: [Ty] -> Ty
+createFunType [] = undefined
+createFunType [ty] = ty
+createFunType (ty : binders) = FunTy ty (createFunType binders)

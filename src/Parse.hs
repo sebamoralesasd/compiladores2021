@@ -135,7 +135,7 @@ binders =
 lam :: P SNTerm
 lam = do i <- getPos
          reserved "fun"
-         vty <- parens binding
+         vty <- multibinding
          reservedOp "->"
          t <- expr
          return (SLam i vty t)
@@ -171,28 +171,86 @@ letexp = do
   i <- getPos
   reserved "let"
   v <- var
-  binders <- binders
+  bind <- binders
   reservedOp ":"
   ty <- typeP
   reservedOp "="  
   def <- expr
   reserved "in"
   body <- expr
-  return (SLet i v ty binders def body)
+  return (SLet i v ty bind def body)
+  
+letfunexp :: P SNTerm
+letfunexp = do
+  i <- getPos
+  reserved "let"
+  (do reserved "rec"
+      letrecexpAux i True
+      <|>
+      letrecexpAux i False)
+  where letrecexpAux i isRec = do
+                                 v <- var
+                                 bind <- binders
+                                 reservedOp ":"
+                                 ty <- typeP
+                                 reservedOp "="  
+                                 def <- expr
+                                 reserved "in"
+                                 body <- expr
+                                 if isRec then return (SLetRec i v ty bind def body)
+                                         else return (SLet i v ty bind def body)
 
 -- | Parser de términos
 tm :: P SNTerm
-tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp
+tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp <|> letfunexp
 
 -- | Parser de declaraciones
 decl :: P (Decl SNTerm)
-decl = do 
-     i <- getPos
-     reserved "let"
-     v <- var
-     reservedOp "="
-     t <- expr
-     return (Decl i v t)
+decl = letrecdecl <|> letfundecl -- <|> vardecl <|> typedecl
+-- decl = do 
+--      i <- getPos
+--      reserved "let"
+--      v <- var
+--      reservedOp "="
+--      t <- expr
+--      return (Decl i v t)
+
+letfundecl :: P (Decl SNTerm)
+letfundecl = do
+  i <- getPos
+  reserved "let"
+  v <- var
+  bind <- binders
+  reservedOp ":"
+  ty <- typeP
+  reservedOp "="  
+  def <- expr
+  let types = map snd bind
+  return (Decl i v (createFunType types) (SLam i bind def))
+
+letrecdecl :: P (Decl SNTerm)
+letrecdecl = do
+  i <- getPos
+  reserved "let"
+  reserved "rec"
+  v <- var
+  bind <- binders
+  reservedOp ":"
+  fty <- typeP
+  reservedOp "="  
+  def <- expr
+  case bind of
+    [(n, ty)] -> 
+      let types = map snd bind
+          sfixDecl = SFix i v (FunTy ty fty) n ty def
+      in return (Decl i v (createFunType types) sfixDecl)
+    (nty:ntys) ->
+      let typeList = (map snd ntys) ++ [fty]
+          funType = createFunType typeList
+          sLetRecDecl = SLetRec i v funType [nty] def (SLam i bind def)
+      in return (Decl i v funType sLetRecDecl)
+    -- Falta caso []. Sí o sí habría que darle un tipo al Decl?
+    -- Manejo del error?
 
 -- | Parser de programas (listas de declaraciones) 
 program :: P [Decl SNTerm]
