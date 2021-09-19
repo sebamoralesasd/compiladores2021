@@ -98,9 +98,8 @@ domCod t ty = typeError t $ "Se esperaba un tipo función, pero se obtuvo: " ++ 
 -- | 'tcDecl' chequea el tipo de una declaración
 -- y la agrega al entorno de tipado de declaraciones globales
 
--- TODO: agregar tipado de Decl.
 tcDecl :: MonadFD4 m  => Decl Term -> m ()
-tcDecl (Decl p n _ t) = do
+tcDecl (Decl p n t) = do
     --chequear si el nombre ya está declarado
     mty <- lookupTy n
     case mty of

@@ -171,20 +171,18 @@ parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
--- TODO: verificar que esto esté bien.
 typecheckDecl :: MonadFD4 m => Decl SNTerm -> m (Decl Term)
-typecheckDecl (Decl p x ty t) = do
+typecheckDecl (Decl p x t) = do
         tt <- (elab t)
-        let dd = (Decl p x ty tt)
+        let dd = (Decl p x tt)
         tcDecl dd
         return dd
 
--- TODO: verificar que esto esté bien.
 handleDecl ::  MonadFD4 m => Decl SNTerm -> m ()
 handleDecl d = do
-        (Decl p x ty tt) <- typecheckDecl d
+        (Decl p x tt) <- typecheckDecl d
         te <- eval tt
-        addDecl (Decl p x ty te)
+        addDecl (Decl p x te)
 
 data Command = Compile CompileForm
              | PPrint String
