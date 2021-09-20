@@ -51,7 +51,7 @@ data Decl a = Decl
   deriving (Show, Functor)
 
 -- TODO: Cambiar a STy e implementar el desugaring de tipos
-type Binder = (Name, Ty)
+type Binder = (Name, STy)
 -- | AST de los términos con azúcar sintáctico. 
 data STm info var =
     SV info var
@@ -60,11 +60,11 @@ data STm info var =
   | SApp info (STm info var) (STm info var)
   | SPrintUnary info String
   | SBinaryOp info BinaryOp (STm info var) (STm info var)
-  | SFix info Name Ty Name Ty (STm info var)
+  | SFix info Name STy Name STy (STm info var)
   | SIfZ info (STm info var) (STm info var) (STm info var)
-  | SLet info Name Ty [Binder] (STm info var) (STm info var)
-  | SLetRec info Name Ty [Binder] (STm info var) (STm info var)
-  | SinTy info Name Ty
+  | SLet info Name STy [Binder] (STm info var) (STm info var)
+  | SLetRec info Name STy [Binder] (STm info var) (STm info var)
+  | SinTy info Name STy
   deriving (Show, Functor)
 
 -- | AST de los términos. 

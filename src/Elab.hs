@@ -17,22 +17,38 @@ import Subst
 
 
 -- | Transforma una lista de tipos [t1 t2 ... tn] en el tipo de funcion t1 -> t2 -> ... -> tn
-createFunType :: [Ty] -> Ty
+createFunType :: [STy] -> STy
 createFunType [] = undefined
 createFunType [ty] = ty
-createFunType (ty : binders) = FunTy ty (createFunType binders)
+createFunType (ty : binders) = SFunTy ty (createFunType binders)
 
+-- | Transforma tipos azucarados en su notación core.
+desugarTy :: MonadFD4 m => STy -> m Ty
+desugarTy SNatTy = return NatTy
+desugarTy (SFunTy stau stau') = do
+  tau <- desugarTy stau
+  tau' <- desugarTy stau'
+  return (FunTy tau tau')
+desugarTy (STypeSinonym name) = do
+  t <- lookupSTy name
+  case t of
+    Nothing -> failPosFD4 NoPos $ "Tipo no declarado."
+    Just ty -> return ty
+
+-- | Transforma términos azucarados en su notación core.
 desugar :: MonadFD4 m => SNTerm -> m NTerm
 desugar (SV info var) = return (V info var)
 desugar (SConst info con) = return (Const info con)
 desugar (SLam info [] _) = failPosFD4 info $ "Lista de binders vacia"
-desugar (SLam info [(name, ty)] sterm) =
+desugar (SLam info [(name, sty)] sterm) =
   do
     term <- desugar sterm
+    ty <- desugarTy sty
     return (Lam info name ty term)
-desugar (SLam info ((name, ty) : bindersTail) sterm) =
+desugar (SLam info ((name, sty) : bindersTail) sterm) =
   do
     term <- desugar (SLam info bindersTail sterm)
+    ty <- desugarTy sty
     return (Lam info name ty term)
 desugar (SApp info sterm1 sterm2) =
   do
@@ -48,9 +64,11 @@ desugar (SBinaryOp info binOp sterm1 sterm2) =
     term1 <- desugar sterm1
     term2 <- desugar sterm2
     return (BinaryOp info binOp term1 term2)
-desugar (SFix info name ty name2 ty2 sterm) =
+desugar (SFix info name sty name2 sty2 sterm) =
   do
     term <- desugar sterm
+    ty <- desugarTy sty
+    ty2 <- desugarTy sty2
     return (Fix info name ty name2 ty2 term)
 desugar (SIfZ info sterm1 sterm2 sterm3) =
   do
@@ -58,10 +76,11 @@ desugar (SIfZ info sterm1 sterm2 sterm3) =
     term2 <- desugar sterm2
     term3 <- desugar sterm3
     return (IfZ info term1 term2 term3)
-desugar (SLet info name ty [] sterm1 sterm2) =
+desugar (SLet info name sty [] sterm1 sterm2) =
   do
     term1 <- desugar sterm1
     term2 <- desugar sterm2
+    ty <- desugarTy sty
     return (Let info name ty term1 term2)
 desugar (SLet info fName fReturnType binders sterm1 sterm2) =
   desugar (SLet info fName fType [] funToBody sterm2)
@@ -71,14 +90,15 @@ desugar (SLet info fName fReturnType binders sterm1 sterm2) =
     funToBody = SLam info (tail binders) sterm1
 -- caso con fix
 desugar (SLetRec info _ _ [] _ _) = failPosFD4 info $ "Lista de binders vacia"
-desugar (SLetRec info fName fReturnType [(name, ty)] sterm1 sterm2) =
+desugar (SLetRec info fName fSReturnType [(name, sty)] sterm1 sterm2) =
   do
     term1 <- desugar sterm1
     term2 <- desugar sterm2
+    ty <- desugarTy sty
+    fReturnType <- desugarTy fSReturnType
     let fixTerm = Fix info fName fType name ty term1
+        fType = FunTy ty fReturnType
      in return (Let info fName fType fixTerm term2)
-  where
-    fType = FunTy ty fReturnType
 -- caso con paso intermedio
 desugar (SLetRec info fName fReturnType binders sterm1 sterm2) =
   desugar (SLetRec info fName fType [head binders] funToBody sterm2)
