@@ -71,16 +71,16 @@ getPos :: P Pos
 getPos = do pos <- getPosition
             return $ Pos (sourceLine pos) (sourceColumn pos)
 
-tyatom :: P Ty
-tyatom = (reserved "Nat" >> return NatTy)
+tyatom :: P STy
+tyatom = (reserved "Nat" >> return SNatTy)
          <|> parens typeP
 
-typeP :: P Ty
+typeP :: P STy
 typeP = try (do 
           x <- tyatom
           reservedOp "->"
           y <- typeP
-          return (FunTy x y))
+          return (SFunTy x y))
       <|> tyatom
           
 const :: P Const
@@ -110,14 +110,14 @@ atom =     (flip SConst <$> const <*> getPos)
        <|> printOp
 
 -- parsea un par (variable : tipo)
-binding :: P [(Name, Ty)]
+binding :: P [(Name, STy)]
 binding = do v <- var
              reservedOp ":"
              ty <- typeP
              return [(v, ty)]
 
 -- x y z ... : \tau
-multibinding :: P [(Name, Ty)]
+multibinding :: P [(Name, STy)]
 multibinding = 
   do
     variables <- many1 var
@@ -125,7 +125,7 @@ multibinding =
     ty <- typeP
     return (map (\name -> (name, ty)) variables)
 
-binders :: P [(Name, Ty)]
+binders :: P [(Name, STy)]
 binders = 
   do 
     b <- many (parens (binding <|> multibinding))
@@ -242,7 +242,7 @@ letrecdecl = do
   def <- expr
   case bind of
     [(n, ty)] -> 
-      let sfixDecl = SFix i v (FunTy ty fty) n ty def
+      let sfixDecl = SFix i v (SFunTy ty fty) n ty def
       in return (Decl i v sfixDecl)
     _ -> 
       let sLetRec = SLetRec i v fty bind def (SLam i bind def)
