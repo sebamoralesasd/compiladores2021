@@ -50,7 +50,6 @@ data Decl a = Decl
   }
   deriving (Show, Functor)
 
--- TODO: Cambiar a STy e implementar el desugaring de tipos
 type Binder = (Name, STy)
 -- | AST de los términos con azúcar sintáctico. 
 data STm info var =

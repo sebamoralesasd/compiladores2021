@@ -116,6 +116,7 @@ binding = do v <- var
              ty <- typeP
              return [(v, ty)]
 
+-- TODO: Revisar, me parece que multibinding abarca a binding, lo cual haría que la definición de binders sea más plana
 -- x y z ... : \tau
 multibinding :: P [(Name, STy)]
 multibinding = 
@@ -128,14 +129,14 @@ multibinding =
 binders :: P [(Name, STy)]
 binders = 
   do 
-    b <- many (parens (binding <|> multibinding))
+    b <- many (parens (multibinding <|> binding))
     return (concat b)
 
 
 lam :: P SNTerm
 lam = do i <- getPos
          reserved "fun"
-         vty <- multibinding
+         vty <- binders
          reservedOp "->"
          t <- expr
          return (SLam i vty t)
@@ -184,29 +185,33 @@ letfunexp :: P SNTerm
 letfunexp = do
   i <- getPos
   reserved "let"
-  (do reserved "rec"
-      letrecexpAux i True
+  (do 
+    reserved "rec"
+    letrecexpAux i True
       <|>
       letrecexpAux i False)
-  where letrecexpAux i isRec = do
-                                 v <- var
-                                 bind <- binders
-                                 reservedOp ":"
-                                 ty <- typeP
-                                 reservedOp "="  
-                                 def <- expr
-                                 reserved "in"
-                                 body <- expr
-                                 if isRec then return (SLetRec i v ty bind def body)
-                                         else return (SLet i v ty bind def body)
+  where letrecexpAux i isRec = 
+          do
+            functionName <- var
+            bind <- binders
+            reservedOp ":"
+            functionReturnType <- typeP
+            reservedOp "="  
+            def <- expr
+            reserved "in"
+            body <- expr
+            if isRec then return (SLetRec i functionName functionReturnType bind def body)
+                    else return (SLet i functionName functionReturnType bind def body)
 
 -- | Parser de términos
 tm :: P SNTerm
-tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp <|> letfunexp
+-- TODO chequear si debería ser así: 
+tm = app <|> lam <|> ifz <|> printOp <|> fix <|> try letexp <|> letfunexp
+--tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp <|> letfunexp
 
 -- | Parser de declaraciones
 decl :: P (Decl SNTerm)
-decl = letrecdecl <|> letfundecl -- <|> vardecl <|> typedecl
+decl = try letdecl <|> try letrecdecl <|> letfundecl-- <|> vardecl <|> typedecl
 
 typedecl :: P (Decl SNTerm)
 typedecl = do
@@ -216,6 +221,17 @@ typedecl = do
   reservedOp "="
   ty <- typeP
   return (Decl i v (SinTy i v ty))
+
+-- TODO: Revisar qué hacemos con variableType
+letdecl :: P (Decl SNTerm)
+letdecl = do
+  i <- getPos
+  reserved "let"
+  [(variable, variableType)] <- binding <|> parens binding
+  reservedOp "="  
+  def <- expr
+  return (Decl i variable def)
+
 
 letfundecl :: P (Decl SNTerm)
 letfundecl = do
@@ -255,7 +271,7 @@ program = many decl
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
 declOrTm :: P (Either (Decl SNTerm) SNTerm)
-declOrTm =  try (Left <$> decl) <|> (Right <$> expr)
+declOrTm =  try (Right <$> expr) <|> (Left <$> decl)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada
 runP :: P a -> String -> String -> Either ParseError a

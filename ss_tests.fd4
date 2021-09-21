@@ -1,0 +1,17 @@
+let x : Nat = 2 in succ x
+
+fun (x:Nat) -> x
+
+let id (x:Nat) : Nat = x in id 10
+
+let app5 (f : Nat -> Nat) : Nat = f 5 in app5 succ
+
+fun (x:Nat) (y:Nat) -> ifz x then y else 1
+
+let succ (x:Nat) : Nat = x + 1
+
+let pred (x:Nat) : Nat = x - 1
+
+let rec doble (x:Nat) : Nat = ifz x then 0 else succ (succ (doble (pred x)))
+
+let rec ack (m:Nat) (n:Nat) : Nat = ifz m then succ n else (ifz n then ack (pred m) 1 else ack (pred m) (ack m (pred n)))

@@ -39,7 +39,7 @@ desugarTy (STypeSinonym name) = do
 desugar :: MonadFD4 m => SNTerm -> m NTerm
 desugar (SV info var) = return (V info var)
 desugar (SConst info con) = return (Const info con)
-desugar (SLam info [] _) = failPosFD4 info $ "Lista de binders vacia"
+desugar (SLam info [] _) = failPosFD4 info $ "SLAM Lista de binders vacia"
 desugar (SLam info [(name, sty)] sterm) =
   do
     term <- desugar sterm
@@ -89,7 +89,7 @@ desugar (SLet info fName fReturnType binders sterm1 sterm2) =
     fType = createFunType types
     funToBody = SLam info (tail binders) sterm1
 -- caso con fix
-desugar (SLetRec info _ _ [] _ _) = failPosFD4 info $ "Lista de binders vacia"
+desugar (SLetRec info _ _ [] _ _) = failPosFD4 info $ "SLETREC Lista de binders vacia"
 desugar (SLetRec info fName fSReturnType [(name, sty)] sterm1 sterm2) =
   do
     term1 <- desugar sterm1
