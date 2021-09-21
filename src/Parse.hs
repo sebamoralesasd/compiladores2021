@@ -238,6 +238,7 @@ letfundecl = do
   i <- getPos
   reserved "let"
   v <- var
+  -- TODO: REVISAR
   bind <- binders
   reservedOp ":"
   ty <- typeP
