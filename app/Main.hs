@@ -36,6 +36,7 @@ import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
+import MonadFD4 (printFD4)
 
 prompt :: String
 prompt = "FD4> "
@@ -138,7 +139,7 @@ compileFiles (x:xs) = do
         compileFile x
         compileFiles xs
 
-loadFile ::  MonadFD4 m => FilePath -> m [Decl SNTerm]
+loadFile ::  MonadFD4 m => FilePath -> m [SDecl]
 loadFile f = do
     let filename = reverse(dropWhile isSpace (reverse f))
     x <- liftIO $ catch (readFile filename)
@@ -171,8 +172,8 @@ parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
-typecheckDecl :: MonadFD4 m => Decl SNTerm -> m (Decl Term)
-typecheckDecl (Decl p x t) = do
+typecheckDecl :: MonadFD4 m => SDecl -> m (Decl Term)
+typecheckDecl (SDecl (Decl p x t)) = do
         tt <- (elab t)
         let dd = (Decl p x tt)
         tcDecl dd
@@ -182,8 +183,14 @@ handleDecl ::  MonadFD4 m => SDecl -> m ()
 handleDecl ( SinTy pos name sty ) = 
   do
     -- TODO cambiar por interfaz del estilo elabSTy
-    ty <- desugarTy sty
-    addsupTy name ty
+    printFD4 "Creare un alias"
+    result <- lookupSTy name
+    case result of
+      Just ty -> failPosFD4 pos $ "El alias '" ++ name ++ "' ya se definió anteriormente como " -- TODO: Agregar ty para error más expresivo
+      Nothing -> do 
+                    ty <- desugarTy sty
+                    addsupTy name ty
+
 handleDecl d = do
         (Decl p x tt) <- typecheckDecl d
         te <- eval tt

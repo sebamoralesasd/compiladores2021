@@ -74,6 +74,9 @@ getPos = do pos <- getPosition
 tyatom :: P STy
 tyatom = (reserved "Nat" >> return SNatTy)
          <|> parens typeP
+         <|> do
+              v <- var
+              return (STypeSinonym v)
 
 typeP :: P STy
 typeP = try (do 
@@ -211,7 +214,7 @@ tm = app <|> lam <|> ifz <|> printOp <|> fix <|> try letexp <|> letfunexp
 
 -- | Parser de declaraciones
 decl :: P SDecl
-decl = try letdecl <|> try letrecdecl <|> letfundecl-- <|> vardecl <|> typedecl
+decl = try letdecl <|> try letrecdecl <|> letfundecl <|> typedecl
 
 typedecl :: P SDecl
 typedecl = do
