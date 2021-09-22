@@ -8,7 +8,7 @@
 --
 -- Este módulo permite elaborar términos y declaraciones para convertirlas desde
 -- fully named (@NTerm) a locally closed (@Term@)
-module Elab (elab, elab_decl) where
+module Elab (elab, elab_decl, desugarTy) where
 
 import Common
 import Lang
@@ -107,7 +107,6 @@ desugar (SLetRec info fName fReturnType binders sterm1 sterm2) =
     types = map snd binders ++ [fReturnType]
     fType = createFunType (tail types)
     funToBody = SLam info (tail binders) sterm1
-desugar (SinTy info name sty) = undefined
 
 -- | 'elab' transforma variables ligadas en índices de de Bruijn
 -- en un término dado.
@@ -136,5 +135,6 @@ elab' env (App p h a) = App p (elab' env h) (elab' env a)
 elab' env (Let p v vty def body) = Let p v vty (elab' env def) (close v (elab' (v : env) body))
 
 -- TODO: esto para que esta?
-elab_decl :: Decl SNTerm -> Decl Term
-elab_decl = undefined --fmap elab
+elab_decl :: SNTerm -> Decl Term
+elab_decl = undefined -- fmap elab
+

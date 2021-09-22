@@ -210,30 +210,30 @@ tm = app <|> lam <|> ifz <|> printOp <|> fix <|> try letexp <|> letfunexp
 --tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp <|> letfunexp
 
 -- | Parser de declaraciones
-decl :: P (Decl SNTerm)
+decl :: P SDecl
 decl = try letdecl <|> try letrecdecl <|> letfundecl-- <|> vardecl <|> typedecl
 
-typedecl :: P (Decl SNTerm)
+typedecl :: P SDecl
 typedecl = do
   i <- getPos
   reserved "type"
   v <- var
   reservedOp "="
   ty <- typeP
-  return (Decl i v (SinTy i v ty))
+  return (SinTy i v ty)
 
 -- TODO: Revisar qué hacemos con variableType
-letdecl :: P (Decl SNTerm)
+letdecl :: P SDecl
 letdecl = do
   i <- getPos
   reserved "let"
   [(variable, variableType)] <- binding <|> parens binding
   reservedOp "="  
   def <- expr
-  return (Decl i variable def)
+  return (SDecl (Decl i variable def))
 
 
-letfundecl :: P (Decl SNTerm)
+letfundecl :: P SDecl
 letfundecl = do
   i <- getPos
   reserved "let"
@@ -244,9 +244,9 @@ letfundecl = do
   ty <- typeP
   reservedOp "="  
   def <- expr
-  return (Decl i v (SLam i bind def))
+  return (SDecl (Decl i v (SLam i bind def)))
 
-letrecdecl :: P (Decl SNTerm)
+letrecdecl :: P SDecl
 letrecdecl = do
   i <- getPos
   reserved "let"
@@ -260,18 +260,18 @@ letrecdecl = do
   case bind of
     [(n, ty)] -> 
       let sfixDecl = SFix i v (SFunTy ty fty) n ty def
-      in return (Decl i v sfixDecl)
+      in return (SDecl (Decl i v sfixDecl))
     _ -> 
       let sLetRec = SLetRec i v fty bind def (SLam i bind def)
-      in return (Decl i v sLetRec)
+      in return (SDecl (Decl i v sLetRec))
 
 -- | Parser de programas (listas de declaraciones) 
-program :: P [Decl SNTerm]
+program :: P [SDecl]
 program = many decl
 
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
-declOrTm :: P (Either (Decl SNTerm) SNTerm)
+declOrTm :: P (Either SDecl SNTerm)
 declOrTm =  try (Right <$> expr) <|> (Left <$> decl)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada

@@ -50,6 +50,8 @@ data Decl a = Decl
   }
   deriving (Show, Functor)
 
+data SDecl = SDecl (Decl SNTerm) | SinTy Pos Name STy
+
 type Binder = (Name, STy)
 -- | AST de los términos con azúcar sintáctico. 
 data STm info var =
@@ -63,7 +65,6 @@ data STm info var =
   | SIfZ info (STm info var) (STm info var) (STm info var)
   | SLet info Name STy [Binder] (STm info var) (STm info var)
   | SLetRec info Name STy [Binder] (STm info var) (STm info var)
-  | SinTy info Name STy
   deriving (Show, Functor)
 
 -- | AST de los términos. 

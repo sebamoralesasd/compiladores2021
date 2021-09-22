@@ -31,7 +31,7 @@ import Global ( GlEnv(..) )
 import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
-import Elab ( elab )
+import Elab ( elab, desugarTy )
 import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
@@ -178,7 +178,12 @@ typecheckDecl (Decl p x t) = do
         tcDecl dd
         return dd
 
-handleDecl ::  MonadFD4 m => Decl SNTerm -> m ()
+handleDecl ::  MonadFD4 m => SDecl -> m ()
+handleDecl ( SinTy pos name sty ) = 
+  do
+    -- TODO cambiar por interfaz del estilo elabSTy
+    ty <- desugarTy sty
+    addsupTy name ty
 handleDecl d = do
         (Decl p x tt) <- typecheckDecl d
         te <- eval tt
