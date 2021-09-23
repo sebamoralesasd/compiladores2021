@@ -77,18 +77,23 @@ desugar (SIfZ info sterm1 sterm2 sterm3) =
     term2 <- desugar sterm2
     term3 <- desugar sterm3
     return (IfZ info term1 term2 term3)
+-- let x : tau = t in t'
 desugar (SLet info name sty [] sterm1 sterm2) =
   do
     term1 <- desugar sterm1
     term2 <- desugar sterm2
     ty <- desugarTy sty
     return (Let info name ty term1 term2)
+-- let f (x:tau):tau' = t in t'
+-- let f (x1:tau1)...(xn:taun):tau' = t in t'
 desugar (SLet info fName fReturnType binders sterm1 sterm2) =
-  desugar (SLet info fName fType [] funToBody sterm2)
+  do 
+    printFD4 $ show binders
+    desugar (SLet info fName fType [] funToBody sterm2)
   where
     types = map snd binders ++ [fReturnType]
     fType = createFunType types
-    funToBody = SLam info (tail binders) sterm1
+    funToBody = SLam info binders sterm1
 -- caso con fix
 desugar (SLetRec info _ _ [] _ _) = failPosFD4 info $ "SLETREC Lista de binders vacia"
 desugar (SLetRec info fName fSReturnType [(name, sty)] sterm1 sterm2) =

@@ -183,33 +183,26 @@ letexp = do
   reserved "in"
   body <- expr
   return (SLet i v ty bind def body)
-  
-letfunexp :: P SNTerm
-letfunexp = do
+
+letrecexp :: P SNTerm
+letrecexp = do
   i <- getPos
   reserved "let"
-  (do 
-    reserved "rec"
-    letrecexpAux i True
-      <|>
-      letrecexpAux i False)
-  where letrecexpAux i isRec = 
-          do
-            functionName <- var
-            bind <- binders
-            reservedOp ":"
-            functionReturnType <- typeP
-            reservedOp "="  
-            def <- expr
-            reserved "in"
-            body <- expr
-            if isRec then return (SLetRec i functionName functionReturnType bind def body)
-                    else return (SLet i functionName functionReturnType bind def body)
+  reserved "rec"
+  v <- var
+  bind <- binders
+  reservedOp ":"
+  ty <- typeP
+  reservedOp "="  
+  def <- expr
+  reserved "in"
+  body <- expr
+  return (SLetRec i v ty bind def body)
 
 -- | Parser de términos
 tm :: P SNTerm
 -- TODO chequear si debería ser así: 
-tm = app <|> lam <|> ifz <|> printOp <|> fix <|> try letexp <|> letfunexp
+tm = app <|> lam <|> ifz <|> printOp <|> fix <|> try letrecexp <|> letexp
 --tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp <|> letfunexp
 
 -- | Parser de declaraciones
