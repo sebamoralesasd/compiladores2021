@@ -2,12 +2,14 @@ module CEK () where
 
 import GHC.Natural (Natural)
 import Lang
-import MonadFD4 (MonadFD4)
-import Lang (Tm(BinaryOp))
+import Lang (Tm (BinaryOp))
+import MonadFD4 (MonadFD4, printFD4)
 
-data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
+-- TODO: por qué no puedo hacer esto?
+-- data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
+-- data Value = Natural Int | Closure
 
-data Value = Natural Natural | Closure
+data Value = Natural Int | ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
 
 -- El valor enésimo corresponde al índice de De Bruijn
 type Enviroment = [Natural]
@@ -16,34 +18,51 @@ type Enviroment = [Natural]
 data Frame
   = ApplicationLeftEmtpy Enviroment Term -- p . _ t
   | FrameClosure -- clos t
-  | Ifz Term Term -- p . ifz _ then t else e
+  | FrameIfZ Term Term -- p . ifz _ then t else e
   | OplusLeftEmpty Enviroment BinaryOp Term -- p. _ ⊕ t
-  | OplusRightEmpty Value BinaryOp Term -- v ⊕ _
+  | OplusRightEmpty Value BinaryOp -- v ⊕ _
   | FramePrint String -- print str _
 
 -- data Kontinuation = None | Some Frame Kontinuation
 type Kontinuation = [Frame]
 
 search :: MonadFD4 m => Term -> Enviroment -> Kontinuation -> m Value
-search (Print info string term) enviroment kontinuation = 
-    search term enviroment (FramePrint string:kontinuation)
-search (BinaryOp info binaryOp left right) enviroment kontinuation = 
-    search left enviroment (OplusLeftEmpty enviroment binaryOp right :kontinuation)
-search (IfZ info condition thenTerm elseTerm) enviroment kontinuation = undefined
-search (App info left right) enviroment kontinuation = undefined
+search (Print info string term) enviroment kontinuation =
+  search term enviroment (FramePrint string : kontinuation)
+search (BinaryOp info binaryOp left right) enviroment kontinuation =
+  search left enviroment (OplusLeftEmpty enviroment binaryOp right : kontinuation)
+search (IfZ info condition thenTerm elseTerm) enviroment kontinuation =
+  search condition enviroment (FrameIfZ thenTerm elseTerm : kontinuation)
+search (App info left right) enviroment kontinuation =
+  search left enviroment (ApplicationLeftEmtpy enviroment right : kontinuation)
 search (V info var) enviroment kontinuation = undefined
-search (Const info constant) enviroment kontinuation = undefined
-search (Lam info functionName functionType body) enviroment kontinuation = undefined
-search (Fix info functionName functionType argumentName argumentType term) enviroment kontinuation = undefined
+-- find var
+-- where
+--     find :: MonadFD4 m => Var -> m Natural
+--     find (Bound n) = return n
+--     -- find (Global name) = lookup name
+search (Const info (CNat constant)) enviroment kontinuation =
+  destroy (Natural constant) kontinuation
+search (Lam info name ty body) enviroment kontinuation =
+  destroy (ClosureFun enviroment name body) kontinuation
+search (Fix info functionName functionType argumentName argumentType term) enviroment kontinuation =
+  destroy (ClosureFix enviroment functionName argumentName term) kontinuation
 search (Let info name ty replacement term) enviroment kontinuation = undefined
 
+-- TODO: como tipamos esto?
 destroy :: MonadFD4 m => Value -> Kontinuation -> m Value
-destroy value ((FramePrint string) : kontinuation) = undefined
-destroy value ((OplusLeftEmpty enviroment oplus term) : kontinuation) = undefined
-destroy valueRight ((OplusRightEmpty valueLeft oplus term) : kontinuation) = undefined
-destroy (Natural 0) ((Ifz thenTerm elseTerm) : kontinuation) = undefined
-destroy (Natural n) ((Ifz thenTerm elseTerm) : kontinuation) = undefined
--- destroy (Closure) ((Ifz thenTerm elseTerm) : kontinuation) = undefined
+destroy value ((FramePrint string) : kontinuation) =
+  do
+    printFD4 string
+    destroy value kontinuation
+destroy (Natural n) ((OplusLeftEmpty enviroment binaryOp term) : kontinuation) =
+  search term enviroment (OplusRightEmpty (Natrual n) binaryOp) : kontinuation
+destroy valueRight ((OplusRightEmpty valueLeft binaryOp term) : kontinuation) = undefined
+destroy (Natural 0) ((FrameIfZ thenTerm elseTerm) : kontinuation) = undefined
+destroy (Natural n) ((FrameIfZ thenTerm elseTerm) : kontinuation) = undefined
+-- destroy (Closure) ((FrameIfZ thenTerm elseTerm) : kontinuation) = undefined
 destroy (ClosureFun enviroment name term) (ApplicationLeftEmtpy enviroment2 term2 : kontinuation) = undefined
 destroy (ClosureFix enviroment functionName argumentName term) (ApplicationLeftEmtpy enviroment2 term2 : kontinuation) = undefined
 destroy value kontinuation = undefined
+
+-- TODO: ojo que falta caso base
