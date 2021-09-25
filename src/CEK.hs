@@ -36,9 +36,9 @@ search (IfZ pos condition thenTerm elseTerm) enviroment kontinuation =
 search (App pos left right) enviroment kontinuation =
   search left enviroment (ApplicationLeftEmtpy enviroment right : kontinuation)
 search (V pos var) enviroment kontinuation =
-  -- TODO: implementar
   case var of
     (Bound n) -> destroy (enviroment !! n) kontinuation
+    -- TODO: implementar
     (Free name) -> undefined
     (Global name) -> do
         r <- lookupDecl name
@@ -53,7 +53,6 @@ search (Fix pos functionName functionType argumentName argumentType term) enviro
   destroy (ClosureValue (ClosureFix enviroment functionName argumentName term)) kontinuation
 search (Let pos name ty replacement term) enviroment kontinuation = undefined
 
--- TODO: como tipamos esto?
 destroy :: MonadFD4 m => Value -> Kontinuation -> m Value
 destroy value ((FramePrint string) : kontinuation) =
   do
