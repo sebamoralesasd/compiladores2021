@@ -5,11 +5,10 @@ import Lang
 import Lang (Tm (BinaryOp))
 import MonadFD4 (MonadFD4, printFD4)
 
--- TODO: por qué no puedo hacer esto?
--- data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
--- data Value = Natural Int | Closure
+-- TODO: ver si puede quedar más legible
+data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
 
-data Value = Natural Int | ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
+data Value = Natural Int | ClosureValue Closure
 
 -- El valor enésimo corresponde al índice de De Bruijn
 type Enviroment = [Natural]
@@ -17,8 +16,8 @@ type Enviroment = [Natural]
 -- TODO: Agregar caso para Let
 data Frame
   = ApplicationLeftEmtpy Enviroment Term -- p . _ t
-  | FrameClosure -- clos t
-  | FrameIfZ Term Term -- p . ifz _ then t else e
+  | FrameClosure Closure -- clos t
+  | FrameIfZ Enviroment Term Term -- p . ifz _ then t else e
   | OplusLeftEmpty Enviroment BinaryOp Term -- p. _ ⊕ t
   | OplusRightEmpty Value BinaryOp -- v ⊕ _
   | FramePrint String -- print str _
@@ -32,10 +31,10 @@ search (Print info string term) enviroment kontinuation =
 search (BinaryOp info binaryOp left right) enviroment kontinuation =
   search left enviroment (OplusLeftEmpty enviroment binaryOp right : kontinuation)
 search (IfZ info condition thenTerm elseTerm) enviroment kontinuation =
-  search condition enviroment (FrameIfZ thenTerm elseTerm : kontinuation)
+  search condition enviroment (FrameIfZ enviroment thenTerm elseTerm : kontinuation)
 search (App info left right) enviroment kontinuation =
   search left enviroment (ApplicationLeftEmtpy enviroment right : kontinuation)
-search (V info var) enviroment kontinuation = undefined
+search (V info var) enviroment kontinuation = undefined -- TODO: implementar
 -- find var
 -- where
 --     find :: MonadFD4 m => Var -> m Natural
@@ -44,9 +43,9 @@ search (V info var) enviroment kontinuation = undefined
 search (Const info (CNat constant)) enviroment kontinuation =
   destroy (Natural constant) kontinuation
 search (Lam info name ty body) enviroment kontinuation =
-  destroy (ClosureFun enviroment name body) kontinuation
+  destroy (ClosureValue (ClosureFun enviroment name body)) kontinuation
 search (Fix info functionName functionType argumentName argumentType term) enviroment kontinuation =
-  destroy (ClosureFix enviroment functionName argumentName term) kontinuation
+  destroy (ClosureValue (ClosureFix enviroment functionName argumentName term)) kontinuation
 search (Let info name ty replacement term) enviroment kontinuation = undefined
 
 -- TODO: como tipamos esto?
@@ -64,11 +63,21 @@ destroy (Natural n') ((OplusRightEmpty (Natural n) binaryOp) : kontinuation) =
       case binaryOp of
         Add -> n + n'
         Sub -> n - n'
-destroy (Natural 0) ((FrameIfZ thenTerm elseTerm) : kontinuation) = undefined
-destroy (Natural n) ((FrameIfZ thenTerm elseTerm) : kontinuation) = undefined
--- destroy (Closure) ((FrameIfZ thenTerm elseTerm) : kontinuation) = undefined
-destroy (ClosureFun enviroment name term) (ApplicationLeftEmtpy enviroment2 term2 : kontinuation) = undefined
-destroy (ClosureFix enviroment functionName argumentName term) (ApplicationLeftEmtpy enviroment2 term2 : kontinuation) = undefined
-destroy value kontinuation = undefined
+destroy (Natural 0) ((FrameIfZ enviroment thenTerm elseTerm) : kontinuation) =
+  search thenTerm enviroment kontinuation
+destroy (Natural n) ((FrameIfZ enviroment thenTerm elseTerm) : kontinuation) =
+  search elseTerm enviroment kontinuation
+destroy (ClosureValue clousure) (ApplicationLeftEmtpy enviroment term : kontinuation) =
+  search term enviroment (FrameClosure clousure : kontinuation)
+destroy value (FrameClosure (ClosureFun enviroment name term) : kontinuation) =
+  search term substitutedEnviroment kontinuation
+  where
+    -- TODO: reemplazar el entorno acordemente con name->value
+    substitutedEnviroment = enviroment
+destroy value (FrameClosure (ClosureFix enviroment functionName argumentName term) : kontinuation) =
+  search term substitutedEnviroment kontinuation
+  where
+    -- TODO: reemplazar acordemente con : argumentName->value y functionName->clos_fix(enviroment, functionName, argumentName, term)
+    substitutedEnviroment = enviroment
 
 -- TODO: ojo que falta caso base
