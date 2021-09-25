@@ -3,7 +3,8 @@ module CEK () where
 import GHC.Natural (Natural)
 import Lang
 import Lang (Tm (BinaryOp))
-import MonadFD4 (MonadFD4, printFD4)
+import MonadFD4 (MonadFD4, failPosFD4, printFD4)
+import MonadFD4 (lookupDecl)
 
 -- TODO: ver si puede quedar más legible
 data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
@@ -11,7 +12,7 @@ data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name
 data Value = Natural Int | ClosureValue Closure
 
 -- El valor enésimo corresponde al índice de De Bruijn
-type Enviroment = [Natural]
+type Enviroment = [Value]
 
 -- TODO: Agregar caso para Let
 data Frame
@@ -26,27 +27,31 @@ data Frame
 type Kontinuation = [Frame]
 
 search :: MonadFD4 m => Term -> Enviroment -> Kontinuation -> m Value
-search (Print info string term) enviroment kontinuation =
+search (Print pos string term) enviroment kontinuation =
   search term enviroment (FramePrint string : kontinuation)
-search (BinaryOp info binaryOp left right) enviroment kontinuation =
+search (BinaryOp pos binaryOp left right) enviroment kontinuation =
   search left enviroment (OplusLeftEmpty enviroment binaryOp right : kontinuation)
-search (IfZ info condition thenTerm elseTerm) enviroment kontinuation =
+search (IfZ pos condition thenTerm elseTerm) enviroment kontinuation =
   search condition enviroment (FrameIfZ enviroment thenTerm elseTerm : kontinuation)
-search (App info left right) enviroment kontinuation =
+search (App pos left right) enviroment kontinuation =
   search left enviroment (ApplicationLeftEmtpy enviroment right : kontinuation)
-search (V info var) enviroment kontinuation = undefined -- TODO: implementar
--- find var
--- where
---     find :: MonadFD4 m => Var -> m Natural
---     find (Bound n) = return n
---     -- find (Global name) = lookup name
-search (Const info (CNat constant)) enviroment kontinuation =
+search (V pos var) enviroment kontinuation =
+  -- TODO: implementar
+  case var of
+    (Bound n) -> destroy (enviroment !! n) kontinuation
+    (Free name) -> undefined
+    (Global name) -> do
+        r <- lookupDecl name
+        case r of
+            Just term -> search term enviroment kontinuation
+            Nothing -> failPosFD4 pos ("No se encontró la declaración asociada al nombre " ++ name)
+search (Const pos (CNat constant)) enviroment kontinuation =
   destroy (Natural constant) kontinuation
-search (Lam info name ty body) enviroment kontinuation =
+search (Lam pos name ty body) enviroment kontinuation =
   destroy (ClosureValue (ClosureFun enviroment name body)) kontinuation
-search (Fix info functionName functionType argumentName argumentType term) enviroment kontinuation =
+search (Fix pos functionName functionType argumentName argumentType term) enviroment kontinuation =
   destroy (ClosureValue (ClosureFix enviroment functionName argumentName term)) kontinuation
-search (Let info name ty replacement term) enviroment kontinuation = undefined
+search (Let pos name ty replacement term) enviroment kontinuation = undefined
 
 -- TODO: como tipamos esto?
 destroy :: MonadFD4 m => Value -> Kontinuation -> m Value
@@ -64,8 +69,8 @@ destroy (Natural n') ((OplusRightEmpty (Natural n) binaryOp) : kontinuation) =
         Add -> n + n'
         Sub -> n - n'
 destroy (Natural n) ((FrameIfZ enviroment thenTerm elseTerm) : kontinuation) =
-  let term = if n == 0 then thenTerm else elseTerm 
-  in search term enviroment kontinuation
+  let term = if n == 0 then thenTerm else elseTerm
+   in search term enviroment kontinuation
 destroy (ClosureValue clousure) (ApplicationLeftEmtpy enviroment term : kontinuation) =
   search term enviroment (FrameClosure clousure : kontinuation)
 destroy value (FrameClosure (ClosureFun enviroment name term) : kontinuation) =
