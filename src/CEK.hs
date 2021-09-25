@@ -79,5 +79,6 @@ destroy value (FrameClosure (ClosureFix enviroment functionName argumentName ter
   where
     -- TODO: reemplazar acordemente con : argumentName->value y functionName->clos_fix(enviroment, functionName, argumentName, term)
     substitutedEnviroment = enviroment
+destroy value kontinuation = undefined
 
 -- TODO: ojo que falta caso base
