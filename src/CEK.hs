@@ -63,10 +63,9 @@ destroy (Natural n') ((OplusRightEmpty (Natural n) binaryOp) : kontinuation) =
       case binaryOp of
         Add -> n + n'
         Sub -> n - n'
-destroy (Natural 0) ((FrameIfZ enviroment thenTerm elseTerm) : kontinuation) =
-  search thenTerm enviroment kontinuation
 destroy (Natural n) ((FrameIfZ enviroment thenTerm elseTerm) : kontinuation) =
-  search elseTerm enviroment kontinuation
+  let term = if n == 0 then thenTerm else elseTerm 
+  in search term enviroment kontinuation
 destroy (ClosureValue clousure) (ApplicationLeftEmtpy enviroment term : kontinuation) =
   search term enviroment (FrameClosure clousure : kontinuation)
 destroy value (FrameClosure (ClosureFun enviroment name term) : kontinuation) =
