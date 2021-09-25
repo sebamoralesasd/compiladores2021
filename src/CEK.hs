@@ -56,8 +56,14 @@ destroy value ((FramePrint string) : kontinuation) =
     printFD4 string
     destroy value kontinuation
 destroy (Natural n) ((OplusLeftEmpty enviroment binaryOp term) : kontinuation) =
-  search term enviroment (OplusRightEmpty (Natrual n) binaryOp) : kontinuation
-destroy valueRight ((OplusRightEmpty valueLeft binaryOp term) : kontinuation) = undefined
+  search term enviroment (OplusRightEmpty (Natural n) binaryOp : kontinuation)
+destroy (Natural n') ((OplusRightEmpty (Natural n) binaryOp) : kontinuation) =
+  destroy (Natural n_oplus_n') kontinuation
+  where
+    n_oplus_n' =
+      case binaryOp of
+        Add -> n + n'
+        Sub -> n - n'
 destroy (Natural 0) ((FrameIfZ thenTerm elseTerm) : kontinuation) = undefined
 destroy (Natural n) ((FrameIfZ thenTerm elseTerm) : kontinuation) = undefined
 -- destroy (Closure) ((FrameIfZ thenTerm elseTerm) : kontinuation) = undefined
