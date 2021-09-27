@@ -2,7 +2,6 @@ module CEK () where
 
 import GHC.Natural (Natural)
 import Lang
-import Lang (Tm (BinaryOp))
 import MonadFD4 (MonadFD4, failPosFD4, printFD4)
 import MonadFD4 (lookupDecl)
 
@@ -38,7 +37,6 @@ search (App pos left right) enviroment kontinuation =
 search (V pos var) enviroment kontinuation =
   case var of
     (Bound n) -> destroy (enviroment !! n) kontinuation
-    -- TODO: implementar
     (Free name) -> undefined
     (Global name) -> do
         r <- lookupDecl name
@@ -75,13 +73,26 @@ destroy (ClosureValue clousure) (ApplicationLeftEmtpy enviroment term : kontinua
 destroy value (FrameClosure (ClosureFun enviroment name term) : kontinuation) =
   search term substitutedEnviroment kontinuation
   where
-    -- TODO: corroborar esto
     substitutedEnviroment = value:enviroment
 destroy value (FrameClosure (ClosureFix enviroment functionName argumentName term) : kontinuation) =
   search term substitutedEnviroment kontinuation
   where
-    -- TODO: corroborar que esté acordeme con : argumentName->value y functionName->clos_fix(enviroment, functionName, argumentName, term)
-    substitutedEnviroment = ClosureValue (ClosureFix enviroment functionName argumentName term):value:enviroment
-destroy value kontinuation = undefined
+    substitutedEnviroment = value:ClosureValue (ClosureFix enviroment functionName argumentName term):enviroment
+destroy _ _ = undefined
 
 -- TODO: ojo que falta caso base
+
+
+
+-- interactive: (Term, Enviroment, Kontinuation) | (Value, Kontinuation) -> Value
+-- interactive (Term, Enviroment, Kontinuation) = 
+--   do 
+--     nextValue <- searchTinyStep (Term, Enviroment, Kontinuation)
+--     print nextValue
+--     interactive nextValue
+
+-- interactive (Value, Kontinuation) = 
+--   do 
+--     nextValue <- destroyTinyStep (Term, Enviroment, Kontinuation)
+--     print nextValue
+--     interactive nextValue
