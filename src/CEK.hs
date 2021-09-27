@@ -1,9 +1,7 @@
 module CEK () where
 
-import GHC.Natural (Natural)
 import Lang
-import MonadFD4 (MonadFD4, failPosFD4, printFD4)
-import MonadFD4 (lookupDecl)
+import MonadFD4 (MonadFD4, failPosFD4, lookupDecl, printFD4)
 
 -- TODO: ver si puede quedar más legible
 data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
@@ -39,10 +37,10 @@ search (V pos var) enviroment kontinuation =
     (Bound n) -> destroy (enviroment !! n) kontinuation
     (Free name) -> undefined
     (Global name) -> do
-        r <- lookupDecl name
-        case r of
-            Just term -> search term enviroment kontinuation
-            Nothing -> failPosFD4 pos ("No se encontró la declaración asociada al nombre " ++ name)
+      r <- lookupDecl name
+      case r of
+        Just term -> search term enviroment kontinuation
+        Nothing -> failPosFD4 pos ("No se encontró la declaración asociada al nombre " ++ name)
 search (Const pos (CNat constant)) enviroment kontinuation =
   destroy (Natural constant) kontinuation
 search (Lam pos name ty body) enviroment kontinuation =
@@ -52,6 +50,7 @@ search (Fix pos functionName functionType argumentName argumentType term) enviro
 search (Let pos name ty replacement term) enviroment kontinuation = undefined
 
 destroy :: MonadFD4 m => Value -> Kontinuation -> m Value
+destroy value [] = return (value)
 destroy value ((FramePrint string) : kontinuation) =
   do
     printFD4 string
