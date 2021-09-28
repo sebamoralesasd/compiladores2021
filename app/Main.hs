@@ -36,7 +36,7 @@ import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
-import CEK ()
+import CEK (interactive)
 
 prompt :: String
 prompt = "FD4> "

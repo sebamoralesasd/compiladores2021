@@ -1,4 +1,4 @@
-module CEK () where
+module CEK (interactive) where
 
 import Lang
 import MonadFD4 (MonadFD4, failPosFD4, lookupDecl, printFD4)
@@ -51,7 +51,7 @@ search (Fix pos functionName functionType argumentName argumentType term) enviro
 search (Let pos name ty replacement term) enviroment kontinuation = undefined
 
 destroy :: MonadFD4 m => Value -> Kontinuation -> m Value
-destroy value [] = return (value)
+destroy value [] = return value
 destroy value ((FramePrint string) : kontinuation) =
   do
     printFD4 string
@@ -82,6 +82,65 @@ destroy _ _ = undefined
 
 -- TODO: ojo que falta caso base
 
+-- PRINTING
+stateToString :: MonadFD4 m => State -> m String
+stateToString (TermEnviromentKontinuation term enviroment kontinuation) =
+  do
+    ppterm <- pp term
+    return ("⟨" ++ ppterm ++ "⟩")
+stateToString (ValueKontinuation value kontinuation) = return ("⟪" ++ "⟫")
+
+frameToString :: MonadFD4 m => Frame -> m String
+frameToString (ApplicationLeftEmtpy enviroment term) =
+  do
+    enviromentString <- enviromentToString enviroment
+    ppterm <- pp term
+    return (enviromentString ++ " . " ++ "_ ⊕ " ++ ppterm)
+frameToString (FrameClosure closure) = closureToString closure
+frameToString (FrameIfZ enviroment thenTerm elseTerm) =
+  do
+    enviromentString <- enviromentToString enviroment
+    ppthenTerm <- pp thenTerm
+    ppelseTerm <- pp elseTerm
+    return (enviromentString ++ " . ifz _ then " ++ ppthenTerm ++ " else " ++ ppelseTerm)
+frameToString (OplusLeftEmpty enviroment binaryOp term) =
+  do
+    enviromentString <- enviromentToString enviroment
+    ppterm <- pp term
+    return (enviromentString ++ " . _ " ++ show binaryOp ++ " " ++ ppterm)
+frameToString (OplusRightEmpty value binaryOp) =
+  do
+    valueString <- valueToString value
+    return (valueString ++ " " ++ show binaryOp ++ " _")
+frameToString (FramePrint string) = return ("print " ++ string ++ " _")
+
+valueToString :: MonadFD4 m => Value -> m String
+valueToString (Natural n) = return (show n)
+valueToString (ClosureValue closure) = closureToString closure
+
+closureToString :: MonadFD4 m => Closure -> m String
+closureToString (ClosureFun enviroment name term) =
+  do
+    ppterm <- pp term
+    enviromentString <- enviromentToString enviroment
+    return ("clos_fun(" ++ enviromentString ++ ", " ++ name ++ ", " ++ ppterm)
+closureToString (ClosureFix enviroment fname name term) =
+  do
+    ppterm <- pp term
+    enviromentString <- enviromentToString enviroment
+    return ("clos_fix(" ++ enviromentString ++ ", " ++ fname ++ ", " ++ name ++ ", " ++ ppterm)
+
+-- TODO: facherizar
+enviromentToString :: MonadFD4 m => Enviroment -> m String
+enviromentToString [] = return ""
+enviromentToString (env : tail) = do
+  t <- enviromentToString tail
+  e <- valueToString env
+  return (e ++ t)
+
+data State = TermEnviromentKontinuation Term Enviroment Kontinuation | ValueKontinuation Value Kontinuation
+
+-- STEP IMPLEMENTATION
 interactive :: MonadFD4 m => State -> m Value
 interactive (TermEnviromentKontinuation term enviroment kontinuation) =
   do
@@ -94,8 +153,6 @@ interactive (ValueKontinuation value kontinuation) =
     nextValue <- destroyStep value kontinuation
     -- print nextValue
     interactive nextValue
-
-data State = TermEnviromentKontinuation Term Enviroment Kontinuation | ValueKontinuation Value Kontinuation
 
 searchStep :: MonadFD4 m => Term -> Enviroment -> Kontinuation -> m State
 searchStep (Print pos string term) enviroment kontinuation =
