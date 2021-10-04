@@ -90,7 +90,7 @@ main = execParser opts >>= go
                  return ()
     go (Typecheck,opt, files) =
               runOrFail $ mapM_ (typecheckFile opt) files
-    go (InteractiveCEK,_, files) = undefined -- TODO utilizar CEK
+    go (InteractiveCEK,_, files) = undefined -- TODO utilizar CEK | Iniciar con estado vacio?
     -- go (Bytecompile,_, files) =
     --           runOrFail $ mapM_ bytecompileFile files
     -- go (RunVM,_,files) =
