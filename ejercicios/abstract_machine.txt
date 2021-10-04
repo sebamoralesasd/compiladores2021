@@ -1,0 +1,43 @@
+1-
+R.Comp: let x = v in t ~> t[v/x]
+
+R.Cong: 
+
+t ~s~> t' 
+let x = t in t1 ~s~> let x = t' in t1
+
+2-
+E ::= ... 
+  | let x = v in E
+  | let x = E in t
+
+3-
+fr ::= ... 
+  | let x = v in _
+  | let x = _ in t
+
+4-
+F.Busqueda:
+<let x = t in u, K>
+->
+<t, let x = _ in u : K>
+
+F.Reducción
+<< n, let x=_ in u : K>>
+->
+< u[n/x], K>
+
+5-
+fr ::= ...
+  | p. let x=_ in t
+
+6-
+F.Busqueda:
+<let x=t in u, p, K>
+->
+<t, p, p. let x=_ in u : K>
+
+F.Reduccion:
+<< n, p.let x=_ in u : K>>
+->
+<u, p(x->n), K>
