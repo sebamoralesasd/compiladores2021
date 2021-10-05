@@ -21,7 +21,7 @@ data Frame
   | OplusLeftEmpty Enviroment BinaryOp Term -- p. _ ⊕ t
   | OplusRightEmpty Value BinaryOp -- v ⊕ _
   | FramePrint String -- print str _
-  | FrameLetIn Enviroment Name Term 
+  | FrameLetIn Enviroment Term -- let x = _ in t
 
 -- data Kontinuation = None | Some Frame Kontinuation
 type Kontinuation = [Frame]
@@ -50,7 +50,8 @@ search (Lam _ name ty body) env kont =
   destroy (ClosureValue (ClosureFun env name body)) kont
 search (Fix _ functionName functionType argumentName argumentType term) env kont =
   destroy (ClosureValue (ClosureFix env functionName argumentName term)) kont
-search (Let _ name ty replacement term) env kont = undefined
+search (Let _ _ ty replacement term) env kont = 
+  search replacement env (FrameLetIn env term): kont
 
 destroy :: MonadFD4 m => Value -> Kontinuation -> m Value
 destroy value [] = return value
@@ -80,6 +81,7 @@ destroy value (FrameClosure (ClosureFix env functionName argumentName term) : ko
   search term substitutedEnviroment kont
   where
     substitutedEnviroment = value : ClosureValue (ClosureFix env functionName argumentName term) : env
+destroy value (FrameLetIn env term) : kont = search term ( value:env) kont
 destroy _ _ = undefined
 
 -- TODO: ojo que falta caso base
