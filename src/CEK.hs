@@ -1,9 +1,10 @@
 module CEK (interactive) where
 
+import Control.Monad (liftM2)
 import Lang
-import Control.Monad(liftM2)
 import MonadFD4 (MonadFD4, failPosFD4, lookupDecl, printFD4)
 import PPrint (pp)
+import Eval (semOp)
 
 -- TODO: ver si puede quedar más legible
 data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
@@ -50,8 +51,8 @@ search (Lam _ name ty body) env kont =
   destroy (ClosureValue (ClosureFun env name body)) kont
 search (Fix _ functionName functionType argumentName argumentType term) env kont =
   destroy (ClosureValue (ClosureFix env functionName argumentName term)) kont
-search (Let _ _ ty replacement term) env kont = 
-  search replacement env (FrameLetIn env term): kont
+search (Let _ _ ty replacement term) env kont =
+  search replacement env (FrameLetIn env term : kont)
 
 destroy :: MonadFD4 m => Value -> Kontinuation -> m Value
 destroy value [] = return value
@@ -64,10 +65,7 @@ destroy (Natural n) ((OplusLeftEmpty env binaryOp term) : kont) =
 destroy (Natural n') ((OplusRightEmpty (Natural n) binaryOp) : kont) =
   destroy (Natural n_oplus_n') kont
   where
-    n_oplus_n' =
-      case binaryOp of
-        Add -> n + n'
-        Sub -> n - n'
+    n_oplus_n' = semOp binaryOp n n'
 destroy (Natural n) ((FrameIfZ env thenTerm elseTerm) : kont) =
   let term = if n == 0 then thenTerm else elseTerm
    in search term env kont
@@ -81,7 +79,7 @@ destroy value (FrameClosure (ClosureFix env functionName argumentName term) : ko
   search term substitutedEnviroment kont
   where
     substitutedEnviroment = value : ClosureValue (ClosureFix env functionName argumentName term) : env
-destroy value (FrameLetIn env term) : kont = search term ( value:env) kont
+destroy value ((FrameLetIn env term) : kont) = search term (value : env) kont
 destroy _ _ = undefined
 
 -- TODO: ojo que falta caso base
@@ -136,7 +134,7 @@ closureToString (ClosureFix env fname name term) =
 
 enviromentToString :: MonadFD4 m => Enviroment -> m String
 enviromentToString [] = return ""
-enviromentToString (env : tl) = 
+enviromentToString (env : tl) =
   liftM2 (++) (enviromentToString tl) (valueToString env)
 
 data State = TermEnviromentKontinuation Term Enviroment Kontinuation | ValueKontinuation Value Kontinuation
@@ -179,7 +177,7 @@ searchStep (Lam pos name ty body) env kont =
   return (ValueKontinuation (ClosureValue (ClosureFun env name body)) kont)
 searchStep (Fix pos functionName functionType argumentName argumentType term) env kont =
   return (ValueKontinuation (ClosureValue (ClosureFix env functionName argumentName term)) kont)
-searchStep (Let pos name ty replacement term) env kont = undefined
+searchStep (Let pos name ty replacement term) env kont = return (TermEnviromentKontinuation replacement env (FrameLetIn env term : kont))
 
 destroyStep :: MonadFD4 m => Value -> Kontinuation -> m State
 destroyStep value ((FramePrint string) : kont) =
@@ -191,10 +189,7 @@ destroyStep (Natural n) ((OplusLeftEmpty env binaryOp term) : kont) =
 destroyStep (Natural n') ((OplusRightEmpty (Natural n) binaryOp) : kont) =
   return (ValueKontinuation (Natural n_oplus_n') kont)
   where
-    n_oplus_n' =
-      case binaryOp of
-        Add -> n + n'
-        Sub -> n - n'
+    n_oplus_n' = semOp binaryOp n n'
 destroyStep (Natural n) ((FrameIfZ env thenTerm elseTerm) : kont) =
   let term = if n == 0 then thenTerm else elseTerm
    in return (TermEnviromentKontinuation term env kont)
@@ -208,4 +203,5 @@ destroyStep value (FrameClosure (ClosureFix env functionName argumentName term) 
   return (TermEnviromentKontinuation term substitutedEnviroment kont)
   where
     substitutedEnviroment = value : ClosureValue (ClosureFix env functionName argumentName term) : env
+destroyStep value ((FrameLetIn env term) : kont) = return (TermEnviromentKontinuation term (value : env) kont)
 destroyStep _ _ = undefined
