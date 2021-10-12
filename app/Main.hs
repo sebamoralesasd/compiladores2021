@@ -33,10 +33,10 @@ import Lang
 import Parse ( P, tm, program, declOrTm, runP )
 import Elab ( elab )
 import Eval ( eval )
+import EvalCEK ( evalCEK )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
-import CEK (interactive)
 
 prompt :: String
 prompt = "FD4> "
@@ -48,12 +48,15 @@ data Mode =
     Interactive
   | Typecheck
   | InteractiveCEK
+  deriving Show
+-- | Bytecompile 
   -- | Bytecompile 
-  -- | RunVM
-  -- | CC
-  -- | Canon
-  -- | LLVM
-  -- | Build
+-- | Bytecompile 
+-- | RunVM
+-- | CC
+-- | Canon
+-- | LLVM
+-- | Build
 
 -- | Parser de banderas
 parseMode :: Parser (Mode,Bool)
@@ -86,11 +89,14 @@ main = execParser opts >>= go
 
     go :: (Mode,Bool,[FilePath]) -> IO ()
     go (Interactive,_,files) = 
-              do runFD4 (runInputT defaultSettings (repl files))
+              do runFD4 (runInputT defaultSettings (repl files Interactive))
                  return ()
     go (Typecheck,opt, files) =
               runOrFail $ mapM_ (typecheckFile opt) files
-    go (InteractiveCEK,_, files) = undefined -- TODO utilizar CEK | Iniciar con estado vacio?
+    go (InteractiveCEK,_, files) = 
+      do 
+        runFD4 (runInputT defaultSettings (repl files InteractiveCEK))
+        return ()
     -- go (Bytecompile,_, files) =
     --           runOrFail $ mapM_ bytecompileFile files
     -- go (RunVM,_,files) =
@@ -113,9 +119,9 @@ runOrFail m = do
       exitWith (ExitFailure 1)
     Right v -> return v
 
-repl :: (MonadFD4 m, MonadMask m) => [FilePath] -> InputT m ()
-repl args = do
-       lift $ catchErrors $ compileFiles args
+repl :: (MonadFD4 m, MonadMask m) => [FilePath] -> Mode -> InputT m ()
+repl args mode = do
+       lift $ catchErrors $ compileFiles args mode
        s <- lift get
        when (inter s) $ liftIO $ putStrLn
          (  "Entorno interactivo para LD4.\n"
@@ -128,15 +134,15 @@ repl args = do
                Just "" -> loop
                Just x -> do
                        c <- liftIO $ interpretCommand x
-                       b <- lift $ catchErrors $ handleCommand c
+                       b <- lift $ catchErrors $ handleCommand c mode
                        maybe loop (`when` loop) b
 
-compileFiles ::  MonadFD4 m => [FilePath] -> m ()
-compileFiles []     = return ()
-compileFiles (x:xs) = do
+compileFiles ::  MonadFD4 m => [FilePath] -> Mode -> m ()
+compileFiles [] _   = return ()
+compileFiles (x:xs) mode = do
         modify (\s -> s { lfile = x, inter = False })
-        compileFile x
-        compileFiles xs
+        compileFile mode x
+        compileFiles xs mode
 
 loadFile ::  MonadFD4 m => FilePath -> m [Decl NTerm]
 loadFile f = do
@@ -148,8 +154,8 @@ loadFile f = do
     setLastFile filename
     parseIO filename program x
 
-compileFile ::  MonadFD4 m => FilePath -> m ()
-compileFile f = do
+compileFile ::  MonadFD4 m => Mode -> FilePath -> m ()
+compileFile mode f = do
     printFD4 ("Abriendo "++f++"...")
     let filename = reverse(dropWhile isSpace (reverse f))
     x <- liftIO $ catch (readFile filename)
@@ -157,7 +163,7 @@ compileFile f = do
                          hPutStrLn stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err)
                          return "")
     decls <- parseIO filename program x
-    mapM_ handleDecl decls
+    mapM_ (handleDecl mode) decls
 
 typecheckFile ::  MonadFD4 m => Bool -> FilePath -> m ()
 typecheckFile opt f = do
@@ -177,12 +183,18 @@ typecheckDecl (Decl p x t) = do
         tcDecl dd
         return dd
 
-handleDecl ::  MonadFD4 m => Decl NTerm -> m ()
-handleDecl d = do
+handleDecl ::  MonadFD4 m => Mode -> Decl NTerm -> m ()
+handleDecl mode d = do
         (Decl p x tt) <- typecheckDecl d
-        te <- eval tt
+        printFD4 $ show mode
+        te <- case mode of
+          Interactive -> eval tt
+          InteractiveCEK -> evalCEK tt
+          _ -> undefined
         addDecl (Decl p x te)
 
+
+-- TODO: agregar comando para evaluación con CEK
 data Command = Compile CompileForm
              | PPrint String
              | Type String
@@ -192,8 +204,9 @@ data Command = Compile CompileForm
              | Help
              | Noop
 
-data CompileForm = CompileInteractive  String
-                 | CompileFile         String
+data CompileForm = CompileInteractive     String
+                 | CompileInteractiveCEK  String
+                 | CompileFile            String
 
 data InteractiveCommand = Cmd [String] String (String -> Command) String
 
@@ -215,7 +228,7 @@ interpretCommand x
                          return Noop
 
      else
-       return (Compile (CompileInteractive x))
+       return (Compile (CompileInteractiveCEK x))
 
 commands :: [InteractiveCommand]
 commands
@@ -226,7 +239,9 @@ commands
        Cmd [":reload"]      ""        (const Reload)         "Vuelve a cargar el último archivo cargado",
        Cmd [":type"]        "<exp>"   Type           "Chequea el tipo de una expresión",
        Cmd [":quit",":Q"]        ""        (const Quit)   "Salir del intérprete",
-       Cmd [":help",":?"]   ""        (const Help)   "Mostrar esta lista de comandos" ]
+       Cmd [":help",":?"]   ""        (const Help)   "Mostrar esta lista de comandos",
+       Cmd [":cek",":k"]   "<exp>"         (Compile . CompileInteractiveCEK)   "Evaluar usando la máquina CEK" ]
+
 
 helpTxt :: [InteractiveCommand] -> String
 helpTxt cs
@@ -240,8 +255,9 @@ helpTxt cs
 
 -- | 'handleCommand' interpreta un comando y devuelve un booleano
 -- indicando si se debe salir del programa o no.
-handleCommand ::  MonadFD4 m => Command  -> m Bool
-handleCommand cmd = do
+handleCommand ::  MonadFD4 m => Command -> Mode -> m Bool
+handleCommand cmd mode = do
+   printFD4 $ show mode
    s@GlEnv {..} <- get
    case cmd of
        Quit   ->  return False
@@ -251,27 +267,31 @@ handleCommand cmd = do
                       return True
        Compile c ->
                   do  case c of
-                          CompileInteractive e -> compilePhrase e
-                          CompileFile f        -> put (s {lfile=f, cantDecl=0}) >> compileFile f
+                          CompileInteractive e -> compilePhrase e mode
+                          CompileInteractiveCEK e -> compilePhrase e mode
+                          CompileFile f        -> put (s {lfile=f, cantDecl=0}) >> compileFile mode f
                       return True
-       Reload ->  eraseLastFileDecls >> (getLastFile >>= compileFile) >> return True
+       Reload ->  eraseLastFileDecls >> (getLastFile >>= (compileFile mode)) >> return True
        PPrint e   -> printPhrase e >> return True
        Type e    -> typeCheckPhrase e >> return True
 
-compilePhrase ::  MonadFD4 m => String -> m ()
-compilePhrase x =
+compilePhrase ::  MonadFD4 m => String -> Mode -> m ()
+compilePhrase x mode =
   do
     dot <- parseIO "<interactive>" declOrTm x
     case dot of 
-      Left d  -> handleDecl d
-      Right t -> handleTerm t
+      Left d  -> handleDecl mode d
+      Right t -> handleTerm t mode
 
-handleTerm ::  MonadFD4 m => NTerm -> m ()
-handleTerm t = do
+handleTerm ::  MonadFD4 m => NTerm -> Mode -> m ()
+handleTerm t mode = do
          let tt = elab t
          s <- get
          ty <- tc tt (tyEnv s)
-         te <- eval tt
+         te <- case mode of
+           Interactive -> eval tt
+           InteractiveCEK -> evalCEK tt
+           _ -> undefined
          ppte <- pp te
          printFD4 (ppte ++ " : " ++ ppTy ty)
 

@@ -16,6 +16,19 @@ import Lang
 import Subst ( substN, subst )
 import MonadFD4 ( MonadFD4, lookupDecl, failFD4, printFD4 )
 import PPrint ( ppName )
+-- import MonadEval
+
+-- newtype FDEval a = Eval (FD4 a)
+
+-- instance Monad FDEval where
+--    return (Eval x) = x
+--    f >>= (Eval x) = f x
+-- instance MonadIO FDEval
+-- instance (MonadState Global.GlEnv) FDEval
+-- instance MonadFD4 FDEval
+
+-- instance MonadEval FDEval where
+--    evaluate = eval
 
 -- | Semántica de operadores binarios
 semOp :: BinaryOp -> Int -> Int -> Int

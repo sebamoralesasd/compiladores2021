@@ -1,0 +1,7 @@
+let succ = fun (x:Nat) -> x+1
+
+let id = fun (x: Nat) -> x 
+
+let app5 = fun (f: Nat -> Nat) -> f 5
+
+
