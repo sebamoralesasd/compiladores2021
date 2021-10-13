@@ -6,6 +6,7 @@ import Eval (semOp)
 import Lang
 import MonadFD4 (MonadFD4, failPosFD4, lookupDecl, printFD4)
 import PPrint (pp)
+import Data.List (intercalate)
 
 -- TODO: ver si puede quedar más legible
 data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
@@ -143,15 +144,16 @@ closureToString (ClosureFix env fname name term) =
     return ("clos_fix(" ++ enviromentString ++ ", " ++ fname ++ ", " ++ name ++ ", " ++ ppterm)
 
 enviromentToString :: MonadFD4 m => Enviroment -> m String
-enviromentToString [] = return "{}"
-enviromentToString (value : tl) =
-  liftM2 (++) (enviromentToString tl) (valueToString value)
-
+enviromentToString env = 
+  do 
+    valueStrings <- mapM valueToString env
+    return ("{" ++ intercalate ", " valueStrings ++ "}")
 
 kontinuationToString :: MonadFD4 m => Kontinuation -> m String
-kontinuationToString [] = return ""
-kontinuationToString (frame : tl) =
-  liftM2 (++) (kontinuationToString tl) (frameToString frame)
+kontinuationToString kont  = 
+  do 
+    valueStrings <- mapM frameToString kont
+    return (intercalate " > " (valueStrings ++ ["e"]))
 
 data State = TermEnviromentKontinuation Term Enviroment Kontinuation | ValueKontinuation Value Kontinuation
 
