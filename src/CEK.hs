@@ -1,11 +1,11 @@
 module CEK where
 
+import Common
 import Control.Monad (liftM2)
+import Eval (semOp)
 import Lang
 import MonadFD4 (MonadFD4, failPosFD4, lookupDecl, printFD4)
 import PPrint (pp)
-import Eval (semOp)
-import Common
 
 -- TODO: ver si puede quedar más legible
 data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
@@ -15,7 +15,6 @@ data Value = Natural Int | ClosureValue Closure
 -- El valor enésimo corresponde al índice de De Bruijn
 type Enviroment = [Value]
 
--- TODO: Agregar caso para Let
 data Frame
   = ApplicationLeftEmpty Enviroment Term -- p . _ t
   | FrameClosure Closure -- clos t
@@ -25,7 +24,6 @@ data Frame
   | FramePrint String -- print str _
   | FrameLetIn Enviroment Name Term -- let x = _ in t   (se le agrega el Name para el printing)
 
--- data Kontinuation = None | Some Frame Kontinuation
 type Kontinuation = [Frame]
 
 search :: MonadFD4 m => Term -> Enviroment -> Kontinuation -> m Value
@@ -83,8 +81,7 @@ destroy value (FrameClosure (ClosureFix env functionName argumentName term) : ko
 destroy value ((FrameLetIn env name term) : kont) = search term (value : env) kont
 destroy _ _ = undefined
 
--- TODO: ojo que falta caso base
-
+------------------------------------------------------------------------
 -- PRINTING
 stateToString :: MonadFD4 m => State -> m String
 stateToString (TermEnviromentKontinuation term env kont) =
@@ -117,7 +114,7 @@ frameToString (OplusRightEmpty value binaryOp) =
     valueString <- valueToString value
     return (valueString ++ " " ++ show binaryOp ++ " _")
 frameToString (FramePrint string) = return ("print " ++ string ++ " _")
-frameToString (FrameLetIn env name term) = 
+frameToString (FrameLetIn env name term) =
   do
     enviromentString <- enviromentToString env
     ppterm <- pp term
@@ -146,6 +143,7 @@ enviromentToString (env : tl) =
 
 data State = TermEnviromentKontinuation Term Enviroment Kontinuation | ValueKontinuation Value Kontinuation
 
+------------------------------------------------------------------------
 -- STEP IMPLEMENTATION
 interactive :: MonadFD4 m => State -> m Value
 interactive (TermEnviromentKontinuation term env kont) =
@@ -186,7 +184,7 @@ searchStep (Lam pos name ty body) env kont =
   return (ValueKontinuation (ClosureValue (ClosureFun env name body)) kont)
 searchStep (Fix pos functionName functionType argumentName argumentType term) env kont =
   return (ValueKontinuation (ClosureValue (ClosureFix env functionName argumentName term)) kont)
-searchStep (Let pos name ty replacement term) env kont = 
+searchStep (Let pos name ty replacement term) env kont =
   return (TermEnviromentKontinuation replacement env (FrameLetIn env name term : kont))
 
 destroyStep :: MonadFD4 m => Value -> Kontinuation -> m State
