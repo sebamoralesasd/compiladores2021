@@ -1,10 +1,11 @@
-module CEK (interactive) where
+module CEK where
 
 import Control.Monad (liftM2)
 import Lang
 import MonadFD4 (MonadFD4, failPosFD4, lookupDecl, printFD4)
 import PPrint (pp)
 import Eval (semOp)
+import Common
 
 -- TODO: ver si puede quedar más legible
 data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
@@ -90,6 +91,7 @@ stateToString (TermEnviromentKontinuation term env kont) =
   do
     ppterm <- pp term
     return ("⟨" ++ ppterm ++ "⟩")
+-- TODO: arreglar printing para value.
 stateToString (ValueKontinuation value kont) = return ("⟪" ++ "⟫")
 
 frameToString :: MonadFD4 m => Frame -> m String
@@ -149,13 +151,15 @@ interactive :: MonadFD4 m => State -> m Value
 interactive (TermEnviromentKontinuation term env kont) =
   do
     nextValue <- searchStep term env kont
-    -- print nextValue
+    str <- stateToString nextValue
+    printFD4 str
     interactive nextValue
 interactive (ValueKontinuation value []) = return value
 interactive (ValueKontinuation value kont) =
   do
     nextValue <- destroyStep value kont
-    -- print nextValue
+    str <- stateToString nextValue
+    printFD4 str
     interactive nextValue
 
 searchStep :: MonadFD4 m => Term -> Enviroment -> Kontinuation -> m State
@@ -182,7 +186,8 @@ searchStep (Lam pos name ty body) env kont =
   return (ValueKontinuation (ClosureValue (ClosureFun env name body)) kont)
 searchStep (Fix pos functionName functionType argumentName argumentType term) env kont =
   return (ValueKontinuation (ClosureValue (ClosureFix env functionName argumentName term)) kont)
-searchStep (Let pos name ty replacement term) env kont = return (TermEnviromentKontinuation replacement env (FrameLetIn env name term : kont))
+searchStep (Let pos name ty replacement term) env kont = 
+  return (TermEnviromentKontinuation replacement env (FrameLetIn env name term : kont))
 
 destroyStep :: MonadFD4 m => Value -> Kontinuation -> m State
 destroyStep value ((FramePrint string) : kont) =
