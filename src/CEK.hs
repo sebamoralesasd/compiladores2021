@@ -22,7 +22,7 @@ data Frame
   | OplusLeftEmpty Enviroment BinaryOp Term -- p. _ ⊕ t
   | OplusRightEmpty Value BinaryOp -- v ⊕ _
   | FramePrint String -- print str _
-  | FrameLetIn Enviroment Term -- let x = _ in t
+  | FrameLetIn Enviroment Name Term -- let x = _ in t   (se le agrega el Name para el printing)
 
 -- data Kontinuation = None | Some Frame Kontinuation
 type Kontinuation = [Frame]
@@ -51,8 +51,8 @@ search (Lam _ name ty body) env kont =
   destroy (ClosureValue (ClosureFun env name body)) kont
 search (Fix _ functionName functionType argumentName argumentType term) env kont =
   destroy (ClosureValue (ClosureFix env functionName argumentName term)) kont
-search (Let _ _ ty replacement term) env kont =
-  search replacement env (FrameLetIn env term : kont)
+search (Let _ name ty replacement term) env kont =
+  search replacement env (FrameLetIn env name term : kont)
 
 destroy :: MonadFD4 m => Value -> Kontinuation -> m Value
 destroy value [] = return value
@@ -79,7 +79,7 @@ destroy value (FrameClosure (ClosureFix env functionName argumentName term) : ko
   search term substitutedEnviroment kont
   where
     substitutedEnviroment = value : ClosureValue (ClosureFix env functionName argumentName term) : env
-destroy value ((FrameLetIn env term) : kont) = search term (value : env) kont
+destroy value ((FrameLetIn env name term) : kont) = search term (value : env) kont
 destroy _ _ = undefined
 
 -- TODO: ojo que falta caso base
@@ -115,6 +115,11 @@ frameToString (OplusRightEmpty value binaryOp) =
     valueString <- valueToString value
     return (valueString ++ " " ++ show binaryOp ++ " _")
 frameToString (FramePrint string) = return ("print " ++ string ++ " _")
+frameToString (FrameLetIn env name term) = 
+  do
+    enviromentString <- enviromentToString env
+    ppterm <- pp term
+    return (enviromentString ++ ". let " ++ name ++ " = _ in " ++ ppterm)
 
 valueToString :: MonadFD4 m => Value -> m String
 valueToString (Natural n) = return (show n)
@@ -177,7 +182,7 @@ searchStep (Lam pos name ty body) env kont =
   return (ValueKontinuation (ClosureValue (ClosureFun env name body)) kont)
 searchStep (Fix pos functionName functionType argumentName argumentType term) env kont =
   return (ValueKontinuation (ClosureValue (ClosureFix env functionName argumentName term)) kont)
-searchStep (Let pos name ty replacement term) env kont = return (TermEnviromentKontinuation replacement env (FrameLetIn env term : kont))
+searchStep (Let pos name ty replacement term) env kont = return (TermEnviromentKontinuation replacement env (FrameLetIn env name term : kont))
 
 destroyStep :: MonadFD4 m => Value -> Kontinuation -> m State
 destroyStep value ((FramePrint string) : kont) =
@@ -203,5 +208,5 @@ destroyStep value (FrameClosure (ClosureFix env functionName argumentName term) 
   return (TermEnviromentKontinuation term substitutedEnviroment kont)
   where
     substitutedEnviroment = value : ClosureValue (ClosureFix env functionName argumentName term) : env
-destroyStep value ((FrameLetIn env term) : kont) = return (TermEnviromentKontinuation term (value : env) kont)
+destroyStep value ((FrameLetIn env name term) : kont) = return (TermEnviromentKontinuation term (value : env) kont)
 destroyStep _ _ = undefined
