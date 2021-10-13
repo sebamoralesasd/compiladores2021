@@ -1,7 +1,5 @@
 module CEK where
 
-import Common
-import Control.Monad (liftM2)
 import Eval (semOp)
 import Lang
 import MonadFD4 (MonadFD4, failPosFD4, lookupDecl, printFD4)
