@@ -89,20 +89,20 @@ stateToString (TermEnviromentKontinuation term env kont) =
     ppterm <- pp term
     envString <- enviromentToString env
     kontString <- kontinuationToString kont
-    return ("⟨" ++ ppterm ++ ", " ++ envString ++ ", " ++ kontString ++ "⟩")
+    return ("<" ++ ppterm ++ ", " ++ envString ++ ", " ++ kontString ++ ">")
 -- TODO: arreglar printing para value.
 stateToString (ValueKontinuation value kont) =
   do
     valueString <- valueToString value
     kontString <- kontinuationToString kont
-    return ("⟪" ++ valueString ++ ", " ++ kontString ++ "⟫")
+    return ("<<" ++ valueString ++ ", " ++ kontString ++ ">>")
 
 frameToString :: MonadFD4 m => Frame -> m String
 frameToString (ApplicationLeftEmpty env term) =
   do
     enviromentString <- enviromentToString env
     ppterm <- pp term
-    return (enviromentString ++ " . " ++ "_ ⊕ " ++ ppterm)
+    return (enviromentString ++ " . _ " ++ ppterm)
 frameToString (FrameClosure closure) = closureToString closure
 frameToString (FrameIfZ env thenTerm elseTerm) =
   do
@@ -143,9 +143,10 @@ closureToString (ClosureFix env fname name term) =
     return ("clos_fix(" ++ enviromentString ++ ", " ++ fname ++ ", " ++ name ++ ", " ++ ppterm)
 
 enviromentToString :: MonadFD4 m => Enviroment -> m String
-enviromentToString [] = return ""
-enviromentToString (env : tl) =
-  liftM2 (++) (enviromentToString tl) (valueToString env)
+enviromentToString [] = return "{}"
+enviromentToString (value : tl) =
+  liftM2 (++) (enviromentToString tl) (valueToString value)
+
 
 kontinuationToString :: MonadFD4 m => Kontinuation -> m String
 kontinuationToString [] = return ""
@@ -157,18 +158,22 @@ data State = TermEnviromentKontinuation Term Enviroment Kontinuation | ValueKont
 ------------------------------------------------------------------------
 -- STEP IMPLEMENTATION
 interactive :: MonadFD4 m => State -> m Value
-interactive (TermEnviromentKontinuation term env kont) =
+interactive state@(TermEnviromentKontinuation term env kont) =
   do
+    str <- stateToString state
+    printFD4 str
     nextValue <- searchStep term env kont
-    str <- stateToString nextValue
-    printFD4 str
     interactive nextValue
-interactive (ValueKontinuation value []) = return value
-interactive (ValueKontinuation value kont) =
+interactive state@(ValueKontinuation value []) = 
   do
-    nextValue <- destroyStep value kont
-    str <- stateToString nextValue
+    str <- stateToString state
     printFD4 str
+    return value
+interactive state@(ValueKontinuation value kont) =
+  do
+    str <- stateToString state
+    printFD4 str
+    nextValue <- destroyStep value kont
     interactive nextValue
 
 searchStep :: MonadFD4 m => Term -> Enviroment -> Kontinuation -> m State
