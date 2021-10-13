@@ -9,6 +9,7 @@ import PPrint (pp)
 import Data.List (intercalate)
 
 -- TODO: ver si puede quedar más legible
+-- Se podría reemplazar por el término asociado adentro para poder hacer mejor pp?
 data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
 
 data Value = Natural Int | ClosureValue Closure
@@ -91,7 +92,6 @@ stateToString (TermEnviromentKontinuation term env kont) =
     envString <- enviromentToString env
     kontString <- kontinuationToString kont
     return ("<" ++ ppterm ++ ", " ++ envString ++ ", " ++ kontString ++ ">")
--- TODO: arreglar printing para value.
 stateToString (ValueKontinuation value kont) =
   do
     valueString <- valueToString value
