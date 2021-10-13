@@ -22,7 +22,7 @@ data Frame
   | OplusLeftEmpty Enviroment BinaryOp Term -- p. _ ⊕ t
   | OplusRightEmpty Value BinaryOp -- v ⊕ _
   | FramePrint String -- print str _
-  | FrameLetIn Enviroment Name Term -- let x = _ in t   (se le agrega el Name para el printing)
+  | FrameLetIn Enviroment Name Term -- let x = _ in t (se le agrega el Name para el printing)
 
 type Kontinuation = [Frame]
 
@@ -87,9 +87,15 @@ stateToString :: MonadFD4 m => State -> m String
 stateToString (TermEnviromentKontinuation term env kont) =
   do
     ppterm <- pp term
-    return ("⟨" ++ ppterm ++ "⟩")
+    envString <- enviromentToString env
+    kontString <- kontinuationToString kont
+    return ("⟨" ++ ppterm ++ ", " ++ envString ++ ", " ++ kontString ++ "⟩")
 -- TODO: arreglar printing para value.
-stateToString (ValueKontinuation value kont) = return ("⟪" ++ "⟫")
+stateToString (ValueKontinuation value kont) =
+  do
+    valueString <- valueToString value
+    kontString <- kontinuationToString kont
+    return ("⟪" ++ valueString ++ ", " ++ kontString ++ "⟫")
 
 frameToString :: MonadFD4 m => Frame -> m String
 frameToString (ApplicationLeftEmpty env term) =
@@ -140,6 +146,11 @@ enviromentToString :: MonadFD4 m => Enviroment -> m String
 enviromentToString [] = return ""
 enviromentToString (env : tl) =
   liftM2 (++) (enviromentToString tl) (valueToString env)
+
+kontinuationToString :: MonadFD4 m => Kontinuation -> m String
+kontinuationToString [] = return ""
+kontinuationToString (frame : tl) =
+  liftM2 (++) (kontinuationToString tl) (frameToString frame)
 
 data State = TermEnviromentKontinuation Term Enviroment Kontinuation | ValueKontinuation Value Kontinuation
 
