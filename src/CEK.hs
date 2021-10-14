@@ -1,14 +1,13 @@
 module CEK where
 
+import Data.List (intercalate)
 import Eval (semOp)
 import Lang
 import MonadFD4 (MonadFD4, failPosFD4, lookupDecl, printFD4)
 import PPrint (pp)
-import Data.List (intercalate)
 
--- TODO: ver si puede quedar más legible
--- Se podría reemplazar por el término asociado adentro para poder hacer mejor pp?
-data Closure = ClosureFun Enviroment Name Term | ClosureFix Enviroment Name Name Term
+-- Sólo admite Lam y Fix
+data Closure = Closure Enviroment Term
 
 data Value = Natural Int | ClosureValue Closure
 
@@ -46,10 +45,10 @@ search (V pos var) env kont =
         Nothing -> failPosFD4 pos ("No se encontró la declaración asociada al nombre " ++ name)
 search (Const _ (CNat constant)) env kont =
   destroy (Natural constant) kont
-search (Lam _ name ty body) env kont =
-  destroy (ClosureValue (ClosureFun env name body)) kont
-search (Fix _ functionName functionType argumentName argumentType term) env kont =
-  destroy (ClosureValue (ClosureFix env functionName argumentName term)) kont
+search term@Lam {} env kont =
+  destroy (ClosureValue (Closure env term)) kont
+search term@Fix {} env kont =
+  destroy (ClosureValue (Closure env term)) kont
 search (Let _ name ty replacement term) env kont =
   search replacement env (FrameLetIn env name term : kont)
 
@@ -70,16 +69,18 @@ destroy (Natural n) ((FrameIfZ env thenTerm elseTerm) : kont) =
    in search term env kont
 destroy (ClosureValue clousure) (ApplicationLeftEmpty env term : kont) =
   search term env (FrameClosure clousure : kont)
-destroy value (FrameClosure (ClosureFun env name term) : kont) =
+destroy value (FrameClosure (Closure env (Lam _ _ _ term)) : kont) =
   search term substitutedEnviroment kont
   where
     substitutedEnviroment = value : env
-destroy value (FrameClosure (ClosureFix env functionName argumentName term) : kont) =
+destroy value (FrameClosure (Closure env fixTerm@(Fix _ _ _ _ _ term)) : kont) =
   search term substitutedEnviroment kont
   where
-    substitutedEnviroment = value : ClosureValue (ClosureFix env functionName argumentName term) : env
+    substitutedEnviroment = value : ClosureValue (Closure env fixTerm) : env
 destroy value ((FrameLetIn env name term) : kont) = search term (value : env) kont
 destroy _ _ = undefined
+
+
 
 ------------------------------------------------------------------------
 -- PRINTING
@@ -130,26 +131,27 @@ valueToString (Natural n) = return (show n)
 valueToString (ClosureValue closure) = closureToString closure
 
 closureToString :: MonadFD4 m => Closure -> m String
-closureToString (ClosureFun env name term) =
+closureToString (Closure env (Lam _ name _ term)) =
   do
     ppterm <- pp term
     enviromentString <- enviromentToString env
     return ("clos_fun(" ++ enviromentString ++ ", " ++ name ++ ", " ++ ppterm)
-closureToString (ClosureFix env fname name term) =
+closureToString (Closure env (Fix _ fname _ name _ term)) =
   do
     ppterm <- pp term
     enviromentString <- enviromentToString env
     return ("clos_fix(" ++ enviromentString ++ ", " ++ fname ++ ", " ++ name ++ ", " ++ ppterm)
+closureToString _ = undefined
 
 enviromentToString :: MonadFD4 m => Enviroment -> m String
-enviromentToString env = 
-  do 
+enviromentToString env =
+  do
     valueStrings <- mapM valueToString env
     return ("{" ++ intercalate ", " valueStrings ++ "}")
 
 kontinuationToString :: MonadFD4 m => Kontinuation -> m String
-kontinuationToString kont  = 
-  do 
+kontinuationToString kont =
+  do
     valueStrings <- mapM frameToString kont
     return (intercalate " > " (valueStrings ++ ["e"]))
 
@@ -164,7 +166,7 @@ interactive state@(TermEnviromentKontinuation term env kont) =
     printFD4 str
     nextValue <- searchStep term env kont
     interactive nextValue
-interactive state@(ValueKontinuation value []) = 
+interactive state@(ValueKontinuation value []) =
   do
     str <- stateToString state
     printFD4 str
@@ -196,10 +198,10 @@ searchStep (V pos var) env kont =
         Nothing -> failPosFD4 pos ("No se encontró la declaración asociada al nombre " ++ name)
 searchStep (Const pos (CNat constant)) env kont =
   return (ValueKontinuation (Natural constant) kont)
-searchStep (Lam pos name ty body) env kont =
-  return (ValueKontinuation (ClosureValue (ClosureFun env name body)) kont)
-searchStep (Fix pos functionName functionType argumentName argumentType term) env kont =
-  return (ValueKontinuation (ClosureValue (ClosureFix env functionName argumentName term)) kont)
+searchStep t@Lam{} env kont =
+  return (ValueKontinuation (ClosureValue (Closure env t)) kont)
+searchStep t@Fix{} env kont =
+  return (ValueKontinuation (ClosureValue (Closure env t)) kont)
 searchStep (Let pos name ty replacement term) env kont =
   return (TermEnviromentKontinuation replacement env (FrameLetIn env name term : kont))
 
@@ -219,13 +221,13 @@ destroyStep (Natural n) ((FrameIfZ env thenTerm elseTerm) : kont) =
    in return (TermEnviromentKontinuation term env kont)
 destroyStep (ClosureValue clousure) (ApplicationLeftEmpty env term : kont) =
   return (TermEnviromentKontinuation term env (FrameClosure clousure : kont))
-destroyStep value (FrameClosure (ClosureFun env name term) : kont) =
+destroyStep value (FrameClosure (Closure env (Lam _ _ _ term)) : kont) =
   return (TermEnviromentKontinuation term substitutedEnviroment kont)
   where
     substitutedEnviroment = value : env
-destroyStep value (FrameClosure (ClosureFix env functionName argumentName term) : kont) =
+destroyStep value (FrameClosure (Closure env fixTerm@(Fix _ _ _ _ _ term)) : kont) =
   return (TermEnviromentKontinuation term substitutedEnviroment kont)
   where
-    substitutedEnviroment = value : ClosureValue (ClosureFix env functionName argumentName term) : env
+    substitutedEnviroment = value : ClosureValue (Closure env fixTerm) : env
 destroyStep value ((FrameLetIn env name term) : kont) = return (TermEnviromentKontinuation term (value : env) kont)
 destroyStep _ _ = undefined

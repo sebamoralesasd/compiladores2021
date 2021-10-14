@@ -19,5 +19,4 @@ evalCEK t = do v <- interactive $ TermEnviromentKontinuation t [] []
               toTerm (Natural n) = Const NoPos (CNat n)
               toTerm (ClosureValue clos) =
                 case clos of
-                  ClosureFun _ _ term -> term
-                  ClosureFix _ _ _ term -> term
+                  Closure env term -> term
