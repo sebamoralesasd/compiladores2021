@@ -6,11 +6,6 @@ import Lang
 import CEK
 import Common
 
--- newtype FDCEK a = CEK (FD4 a)
-
--- instance MonadEval FDCEK where
---    evaluate = evalCEK
-
 evalCEK :: MonadFD4 m => Term -> m Term
 evalCEK t = do v <- interactive $ TermEnviromentKontinuation t [] []
             --do v <- search t [] []

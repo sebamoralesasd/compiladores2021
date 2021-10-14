@@ -16,7 +16,6 @@ y la mónada 'FD4' que provee una instancia de esta clase.
 
 module MonadFD4 (
   FD4,
-  runFD4,
   lookupDecl,
   lookupTy,
   printFD4,
@@ -120,10 +119,3 @@ type FD4 = StateT GlEnv (ExceptT Error IO)
 
 -- | Esta es una instancia vacía, ya que 'MonadFD4' no tiene funciones miembro.
 instance MonadFD4 FD4
-
--- 'runFD4\'' corre una computación de la mónad 'FD4' en el estado inicial 'Global.initialEnv' 
-runFD4' :: FD4 a -> IO (Either Error (a, GlEnv))
-runFD4' c =  runExceptT $ runStateT c initialEnv
-
-runFD4:: FD4 a -> IO (Either Error a)
-runFD4 c = fmap fst <$> runFD4' c
