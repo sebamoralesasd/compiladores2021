@@ -26,61 +26,20 @@ data Frame
 type Kontinuation = [Frame]
 
 search :: MonadFD4 m => Term -> Enviroment -> Kontinuation -> m Value
-search (Print _ string term) env kont =
-  search term env (FramePrint string : kont)
-search (BinaryOp _ binaryOp left right) env kont =
-  search left env (OplusLeftEmpty env binaryOp right : kont)
-search (IfZ _ condition thenTerm elseTerm) env kont =
-  search condition env (FrameIfZ env thenTerm elseTerm : kont)
-search (App _ left right) env kont =
-  search left env (ApplicationLeftEmpty env right : kont)
-search (V pos var) env kont =
-  case var of
-    (Bound n) -> destroy (env !! n) kont
-    (Free _) -> undefined
-    (Global name) -> do
-      r <- lookupDecl name
-      case r of
-        Just term -> search term env kont
-        Nothing -> failPosFD4 pos ("No se encontró la declaración asociada al nombre " ++ name)
-search (Const _ (CNat constant)) env kont =
-  destroy (Natural constant) kont
-search term@Lam {} env kont =
-  destroy (ClosureValue (Closure env term)) kont
-search term@Fix {} env kont =
-  destroy (ClosureValue (Closure env term)) kont
-search (Let _ name ty replacement term) env kont =
-  search replacement env (FrameLetIn env name term : kont)
+search term env kont = innerSearchDestroy (TermEnviromentKontinuation term env kont)
 
 destroy :: MonadFD4 m => Value -> Kontinuation -> m Value
-destroy value [] = return value
-destroy value ((FramePrint string) : kont) =
+destroy value kont = innerSearchDestroy $ ValueKontinuation value kont
+
+innerSearchDestroy :: MonadFD4 m => State -> m Value
+innerSearchDestroy state@(TermEnviromentKontinuation term env kont) =
   do
-    printFD4 string
-    destroy value kont
-destroy (Natural n) ((OplusLeftEmpty env binaryOp term) : kont) =
-  search term env (OplusRightEmpty (Natural n) binaryOp : kont)
-destroy (Natural n') ((OplusRightEmpty (Natural n) binaryOp) : kont) =
-  destroy (Natural n_oplus_n') kont
-  where
-    n_oplus_n' = semOp binaryOp n n'
-destroy (Natural n) ((FrameIfZ env thenTerm elseTerm) : kont) =
-  let term = if n == 0 then thenTerm else elseTerm
-   in search term env kont
-destroy (ClosureValue clousure) (ApplicationLeftEmpty env term : kont) =
-  search term env (FrameClosure clousure : kont)
-destroy value (FrameClosure (Closure env (Lam _ _ _ term)) : kont) =
-  search term substitutedEnviroment kont
-  where
-    substitutedEnviroment = value : env
-destroy value (FrameClosure (Closure env fixTerm@(Fix _ _ _ _ _ term)) : kont) =
-  search term substitutedEnviroment kont
-  where
-    substitutedEnviroment = value : ClosureValue (Closure env fixTerm) : env
-destroy value ((FrameLetIn env name term) : kont) = search term (value : env) kont
-destroy _ _ = undefined
-
-
+    nextValue <- searchStep term env kont
+    innerSearchDestroy nextValue
+innerSearchDestroy state@(ValueKontinuation value kont) =
+  do
+    nextValue <- destroyStep value kont
+    innerSearchDestroy nextValue
 
 ------------------------------------------------------------------------
 -- PRINTING
@@ -178,6 +137,7 @@ interactive state@(ValueKontinuation value kont) =
     nextValue <- destroyStep value kont
     interactive nextValue
 
+-- TODO: Analizar: Es más correcto que sea de tipo State->State, pero sería más feo con tantos wrappers.
 searchStep :: MonadFD4 m => Term -> Enviroment -> Kontinuation -> m State
 searchStep (Print pos string term) env kont =
   return (TermEnviromentKontinuation term env (FramePrint string : kont))
@@ -198,9 +158,9 @@ searchStep (V pos var) env kont =
         Nothing -> failPosFD4 pos ("No se encontró la declaración asociada al nombre " ++ name)
 searchStep (Const pos (CNat constant)) env kont =
   return (ValueKontinuation (Natural constant) kont)
-searchStep t@Lam{} env kont =
+searchStep t@Lam {} env kont =
   return (ValueKontinuation (ClosureValue (Closure env t)) kont)
-searchStep t@Fix{} env kont =
+searchStep t@Fix {} env kont =
   return (ValueKontinuation (ClosureValue (Closure env t)) kont)
 searchStep (Let pos name ty replacement term) env kont =
   return (TermEnviromentKontinuation replacement env (FrameLetIn env name term : kont))
