@@ -31,11 +31,12 @@ import Global ( GlEnv(..) )
 import Errors
 import Lang
 import Parse ( P, tm, program, declOrTm, runP )
-import Elab ( elab )
+import Elab ( elab, desugarTy )
 import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
+import MonadFD4 (printFD4)
 
 prompt :: String
 prompt = "FD4> "
@@ -46,13 +47,14 @@ prompt = "FD4> "
 data Mode =
     Interactive
   | Typecheck
-  -- | InteractiveCEK
-  -- | Bytecompile 
-  -- | RunVM
-  -- | CC
-  -- | Canon
-  -- | LLVM
-  -- | Build
+
+-- | InteractiveCEK
+-- | Bytecompile 
+-- | RunVM
+-- | CC
+-- | Canon
+-- | LLVM
+-- | Build
 
 -- | Parser de banderas
 parseMode :: Parser (Mode,Bool)
@@ -137,7 +139,7 @@ compileFiles (x:xs) = do
         compileFile x
         compileFiles xs
 
-loadFile ::  MonadFD4 m => FilePath -> m [Decl NTerm]
+loadFile ::  MonadFD4 m => FilePath -> m [SDecl]
 loadFile f = do
     let filename = reverse(dropWhile isSpace (reverse f))
     x <- liftIO $ catch (readFile filename)
@@ -170,13 +172,25 @@ parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
-typecheckDecl :: MonadFD4 m => Decl NTerm -> m (Decl Term)
-typecheckDecl (Decl p x t) = do
-        let dd = (Decl p x (elab t))
+typecheckDecl :: MonadFD4 m => SDecl -> m (Decl Term)
+typecheckDecl (SDecl (Decl p x t)) = do
+        tt <- (elab t)
+        let dd = (Decl p x tt)
         tcDecl dd
         return dd
 
-handleDecl ::  MonadFD4 m => Decl NTerm -> m ()
+handleDecl ::  MonadFD4 m => SDecl -> m ()
+handleDecl ( SinTy pos name sty ) = 
+  do
+    -- TODO cambiar por interfaz del estilo elabSTy
+    printFD4 "Creare un alias"
+    result <- lookupSTy name
+    case result of
+      Just ty -> failPosFD4 pos $ "El alias '" ++ name ++ "' ya se definió anteriormente como " -- TODO: Agregar ty para error más expresivo
+      Nothing -> do 
+                    ty <- desugarTy sty
+                    addsupTy name ty
+
 handleDecl d = do
         (Decl p x tt) <- typecheckDecl d
         te <- eval tt
@@ -253,6 +267,7 @@ handleCommand cmd = do
                           CompileInteractive e -> compilePhrase e
                           CompileFile f        -> put (s {lfile=f, cantDecl=0}) >> compileFile f
                       return True
+      -- TODO eraseLastFileTypeSinonyms
        Reload ->  eraseLastFileDecls >> (getLastFile >>= compileFile) >> return True
        PPrint e   -> printPhrase e >> return True
        Type e    -> typeCheckPhrase e >> return True
@@ -265,9 +280,9 @@ compilePhrase x =
       Left d  -> handleDecl d
       Right t -> handleTerm t
 
-handleTerm ::  MonadFD4 m => NTerm -> m ()
+handleTerm ::  MonadFD4 m => SNTerm -> m ()
 handleTerm t = do
-         let tt = elab t
+         tt <- elab t
          s <- get
          ty <- tc tt (tyEnv s)
          te <- eval tt
@@ -278,9 +293,9 @@ printPhrase   :: MonadFD4 m => String -> m ()
 printPhrase x =
   do
     x' <- parseIO "<interactive>" tm x
-    let ex = elab x'
+    ex <- elab x'
     t  <- case x' of 
-           (V p f) -> maybe ex id <$> lookupDecl f
+           (SV p f) -> maybe ex id <$> lookupDecl f
            _       -> return ex  
     printFD4 "NTerm:"
     printFD4 (show x')
@@ -290,7 +305,7 @@ printPhrase x =
 typeCheckPhrase :: MonadFD4 m => String -> m ()
 typeCheckPhrase x = do
          t <- parseIO "<interactive>" tm x
-         let tt = elab t
+         tt <- elab t
          s <- get
          ty <- tc tt (tyEnv s)
          printFD4 (ppTy ty)

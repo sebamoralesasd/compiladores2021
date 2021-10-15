@@ -1,0 +1,8 @@
+let true:Nat = 1
+let false:Nat = 0
+
+let not (m:Nat) : Nat = ifz m then true else false
+
+let and (p q : Nat) : Nat = ifz p then false else ifz q then false else true
+
+let or (p q : Nat) : Nat = ifz p then ifz q then false else true else true

@@ -32,7 +32,7 @@ lexer = Tok.makeTokenParser $
         emptyDef {
          commentLine    = "#",
          reservedNames = ["let", "fun", "fix", "then", "else","in", 
-                           "ifz", "print","Nat"],
+                           "ifz", "print", "Nat", "rec", "type"],
          reservedOpNames = ["->",":","=","+","-"]
         }
 
@@ -71,68 +71,87 @@ getPos :: P Pos
 getPos = do pos <- getPosition
             return $ Pos (sourceLine pos) (sourceColumn pos)
 
-tyatom :: P Ty
-tyatom = (reserved "Nat" >> return NatTy)
+tyatom :: P STy
+tyatom = (reserved "Nat" >> return SNatTy)
          <|> parens typeP
+         <|> do
+              v <- var
+              return (STypeSinonym v)
 
-typeP :: P Ty
+typeP :: P STy
 typeP = try (do 
           x <- tyatom
           reservedOp "->"
           y <- typeP
-          return (FunTy x y))
+          return (SFunTy x y))
       <|> tyatom
           
 const :: P Const
 const = CNat <$> num
 
-printOp :: P NTerm
+printOp :: P SNTerm
 printOp = do
   i <- getPos
   reserved "print"
   str <- option "" stringLiteral
-  a <- atom
-  return (Print i str a)
+  return (SPrintUnary i str)
 
-binary :: String -> BinaryOp -> Assoc -> Operator String () Identity NTerm
-binary s f = Ex.Infix (reservedOp s >> return (BinaryOp NoPos f))
+binary :: String -> BinaryOp -> Assoc -> Operator String () Identity SNTerm
+binary s f = Ex.Infix (reservedOp s >> return (SBinaryOp NoPos f))
 
-table :: [[Operator String () Identity NTerm]]
+table :: [[Operator String () Identity SNTerm]]
 table = [[binary "+" Add Ex.AssocLeft,
           binary "-" Sub Ex.AssocLeft]]
 
-expr :: P NTerm
+expr :: P SNTerm
 expr = Ex.buildExpressionParser table tm
 
-atom :: P NTerm
-atom =     (flip Const <$> const <*> getPos)
-       <|> flip V <$> var <*> getPos
+atom :: P SNTerm
+atom =     (flip SConst <$> const <*> getPos)
+       <|> flip SV <$> var <*> getPos
        <|> parens expr
        <|> printOp
 
 -- parsea un par (variable : tipo)
-binding :: P (Name, Ty)
+binding :: P [(Name, STy)]
 binding = do v <- var
              reservedOp ":"
              ty <- typeP
-             return (v, ty)
+             return [(v, ty)]
 
-lam :: P NTerm
+-- TODO: Revisar, me parece que multibinding abarca a binding, lo cual haría que la definición de binders sea más plana
+-- x y z ... : \tau
+multibinding :: P [(Name, STy)]
+multibinding = 
+  do
+    variables <- many1 var
+    reservedOp ":"
+    ty <- typeP
+    return (map (\name -> (name, ty)) variables)
+
+binders :: P [(Name, STy)]
+binders = 
+  do 
+    b <- many (parens (multibinding <|> binding))
+    return (concat b)
+
+
+lam :: P SNTerm
 lam = do i <- getPos
          reserved "fun"
-         (v,ty) <- parens binding
+         vty <- binders
          reservedOp "->"
          t <- expr
-         return (Lam i v ty t)
+         return (SLam i vty t)
 
 -- Nota el parser app también parsea un solo atom.
-app :: P NTerm
+app :: P SNTerm
 app = (do i <- getPos
           f <- atom
           args <- many atom
-          return (foldl (App i) f args))
+          return (foldl (SApp i) f args))
 
-ifz :: P NTerm
+ifz :: P SNTerm
 ifz = do i <- getPos
          reserved "ifz"
          c <- expr
@@ -140,57 +159,123 @@ ifz = do i <- getPos
          t <- expr
          reserved "else"
          e <- expr
-         return (IfZ i c t e)
+         return (SIfZ i c t e)
 
-fix :: P NTerm
+fix :: P SNTerm
 fix = do i <- getPos
          reserved "fix"
-         (f, fty) <- parens binding
-         (x, xty) <- parens binding
+         [(f, fty)] <- parens binding
+         [(x, xty)] <- parens binding
          reservedOp "->"
          t <- expr
-         return (Fix i f fty x xty t)
+         return (SFix i f fty x xty t)
 
-letexp :: P NTerm
+letexp :: P SNTerm
 letexp = do
   i <- getPos
   reserved "let"
-  (v,ty) <- parens binding
+  v <- var
+  bind <- binders
+  reservedOp ":"
+  ty <- typeP
   reservedOp "="  
   def <- expr
   reserved "in"
   body <- expr
-  return (Let i v ty def body)
+  return (SLet i v ty bind def body)
+
+letrecexp :: P SNTerm
+letrecexp = do
+  i <- getPos
+  reserved "let"
+  reserved "rec"
+  v <- var
+  bind <- binders
+  reservedOp ":"
+  ty <- typeP
+  reservedOp "="  
+  def <- expr
+  reserved "in"
+  body <- expr
+  return (SLetRec i v ty bind def body)
 
 -- | Parser de términos
-tm :: P NTerm
-tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp
+tm :: P SNTerm
+-- TODO chequear si debería ser así: 
+tm = app <|> lam <|> ifz <|> printOp <|> fix <|> try letrecexp <|> letexp
+--tm = app <|> lam <|> ifz <|> printOp <|> fix <|> letexp <|> letfunexp
 
 -- | Parser de declaraciones
-decl :: P (Decl NTerm)
-decl = do 
-     i <- getPos
-     reserved "let"
-     v <- var
-     reservedOp "="
-     t <- expr
-     return (Decl i v t)
+decl :: P SDecl
+decl = try letdecl <|> try letrecdecl <|> letfundecl <|> typedecl
+
+typedecl :: P SDecl
+typedecl = do
+  i <- getPos
+  reserved "type"
+  v <- var
+  reservedOp "="
+  ty <- typeP
+  return (SinTy i v ty)
+
+-- TODO: Revisar qué hacemos con variableType
+letdecl :: P SDecl
+letdecl = do
+  i <- getPos
+  reserved "let"
+  [(variable, variableType)] <- binding <|> parens binding
+  reservedOp "="  
+  def <- expr
+  return (SDecl (Decl i variable def))
+
+
+letfundecl :: P SDecl
+letfundecl = do
+  i <- getPos
+  reserved "let"
+  v <- var
+  -- TODO: REVISAR
+  bind <- binders
+  reservedOp ":"
+  ty <- typeP
+  reservedOp "="  
+  def <- expr
+  return (SDecl (Decl i v (SLam i bind def)))
+
+letrecdecl :: P SDecl
+letrecdecl = do
+  i <- getPos
+  reserved "let"
+  reserved "rec"
+  v <- var
+  bind <- binders
+  reservedOp ":"
+  fty <- typeP
+  reservedOp "="  
+  def <- expr
+  case bind of
+    [(n, ty)] -> 
+      let sfixDecl = SFix i v (SFunTy ty fty) n ty def
+      in return (SDecl (Decl i v sfixDecl))
+    _ -> 
+      let sLetRec = SLetRec i v fty bind def (SLam i bind def)
+      in return (SDecl (Decl i v sLetRec))
 
 -- | Parser de programas (listas de declaraciones) 
-program :: P [Decl NTerm]
+program :: P [SDecl]
 program = many decl
 
 -- | Parsea una declaración a un término
 -- Útil para las sesiones interactivas
-declOrTm :: P (Either (Decl NTerm) NTerm)
-declOrTm =  try (Left <$> decl) <|> (Right <$> expr)
+declOrTm :: P (Either SDecl SNTerm)
+declOrTm =  try (Right <$> expr) <|> (Left <$> decl)
 
 -- Corre un parser, chequeando que se pueda consumir toda la entrada
 runP :: P a -> String -> String -> Either ParseError a
 runP p s filename = runParser (whiteSpace *> p <* eof) () filename s
 
 --para debugging en uso interactivo (ghci)
-parse :: String -> NTerm
+parse :: String -> SNTerm
 parse s = case runP expr s "" of
             Right t -> t
             Left e -> error ("no parse: " ++ show s)

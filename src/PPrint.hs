@@ -170,6 +170,7 @@ render :: Doc AnsiStyle -> String
 render = unpack . renderStrict . layoutSmart defaultLayoutOptions
 
 -- | Pretty printing de declaraciones
+
 ppDecl :: MonadFD4 m => Decl Term -> m String
 ppDecl (Decl p x t) = do 
   gdecl <- gets glb
