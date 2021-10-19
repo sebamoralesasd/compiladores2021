@@ -92,7 +92,10 @@ bc (App i t1 t2) =
     bc1 <- bc t1
     bc2 <- bc t2
     return $ bc1 ++ bc2 ++ [CALL]
---bc (Print i str term)
+bc (Print i str term) =
+  do
+    termBC <- bc term
+    return $ [PRINT] ++ termBC ++ [NULL]
 bc (BinaryOp i binOp t1 t2) =
   do
     bc1 <- bc t1
@@ -103,7 +106,10 @@ bc (BinaryOp i binOp t1 t2) =
       case binOp of
         Add -> ADD
         Sub -> SUB
---bc (Fix i funName fTy name ty term)
+bc (Fix i funName fTy name ty term) =
+  do
+    fnBC <- bc (Lam i funName ty term)
+    return $ fnBC ++ [FIX]
 bc (IfZ i cond thenTerm elseTerm) =
   do
     condBc <- bc cond
@@ -115,7 +121,6 @@ bc (Let i name ty term1 term2) =
     bc1 <- bc term1
     bc2 <- bc term2
     return $ bc1 ++ [SHIFT] ++ bc2 ++ [DROP]
-bc t = undefined
 
 type Module = [Decl Term]
 
