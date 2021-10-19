@@ -73,7 +73,47 @@ pattern PRINT    = 13
 pattern PRINTN   = 14
 
 bc :: MonadFD4 m => Term -> m Bytecode
-bc t = error "implementame"
+bc (V i var) =
+  case var of
+    (Bound index) -> return [ACCESS, index]
+    (Free name) ->
+      do
+        x <- lookupDecl name
+        case x of
+          Just dec -> bc dec
+          Nothing -> failPosFD4 i $ "Variable " ++ name ++ "No declarada"
+    Global _ -> undefined -- Son terminos sin nombre
+bc (Const _ (CNat n)) = return [CONST, n]
+--bc (Lam i name ty term) =
+bc (App i t1 t2) =
+  do
+    bc1 <- bc t1
+    bc2 <- bc t2
+    return $ bc1 ++ bc2 ++ [CALL]
+--bc (Print i str term)
+bc (BinaryOp i binOp t1 t2) =
+  do
+    bc1 <- bc t1
+    bc2 <- bc t2
+    return $ bc1 ++ bc2 ++ [(binaryOpOpcode binOp)]
+    where
+    binaryOpOpcode bop =
+      case bop of
+        Add -> ADD
+        Sub -> SUB
+--bc (Fix i funName fTy name ty term)
+-- bc (IfZ i cond thenTerm elseTerm) =
+--   do
+--     condBc <- bc cond
+--     thenBc <- bc thenTerm
+--     elseBc <- bc elseTerm
+--     return $ ???
+bc (Let i name ty term1 term2) =
+  do
+    bc1 <- bc term1
+    bc2 <- bc term2
+    return $ bc1 ++ [SHIFT] ++ bc2 ++ [DROP]
+bc t = undefined
 
 type Module = [Decl Term]
 
