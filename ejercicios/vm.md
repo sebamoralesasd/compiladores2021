@@ -1,6 +1,6 @@
 C(ifz cond then t else e) = C(cond) ; IFZ (t; e) 
 
-IFZ(t, e) := Pop_Jump_if_not_0 length(t) + 1; C(t), jump length(e); C(e) ; k   
+IFZ(t, e) := Pop_Jump_if_not_0 length(t) + 1; C(t), jump length(e); C(e)   
 
 -- Aca ya esta compilado 
 
