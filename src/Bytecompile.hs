@@ -14,16 +14,14 @@ module Bytecompile
   (Bytecode, runBC, bcWrite, bcRead,bytecompileModule)
  where
 
-import Lang 
-import Subst
+import Lang
 import MonadFD4
 
 import qualified Data.ByteString.Lazy as BS
 import Data.Binary ( Word32, Binary(put, get), decode, encode )
 import Data.Binary.Put ( putWord32le )
 import Data.Binary.Get ( getWord32le, isEmpty )
-
-import Data.Char
+import Data.List
 
 type Opcode = Int
 type Bytecode = [Int]
@@ -33,8 +31,8 @@ newtype Bytecode32 = BC { un32 :: [Word32] }
 {- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
 instance Binary Bytecode32 where
   put (BC bs) = mapM_ putWord32le bs
-  get = go 
-    where go =  
+  get = go
+    where go =
            do
             empty <- isEmpty
             if empty
@@ -64,7 +62,7 @@ pattern FUNCTION = 4
 pattern CALL     = 5
 pattern ADD      = 6
 pattern SUB      = 7
-pattern IFZ      = 8
+pattern POP_JUMP_IF_NOT_0      = 8
 pattern FIX      = 9
 pattern STOP     = 10
 pattern SHIFT    = 11
@@ -95,19 +93,19 @@ bc (BinaryOp i binOp t1 t2) =
   do
     bc1 <- bc t1
     bc2 <- bc t2
-    return $ bc1 ++ bc2 ++ [(binaryOpOpcode binOp)]
+    return $ bc1 ++ bc2 ++ [binaryOpOpcode]
     where
-    binaryOpOpcode bop =
-      case bop of
+    binaryOpOpcode =
+      case binOp of
         Add -> ADD
         Sub -> SUB
 --bc (Fix i funName fTy name ty term)
--- bc (IfZ i cond thenTerm elseTerm) =
---   do
---     condBc <- bc cond
---     thenBc <- bc thenTerm
---     elseBc <- bc elseTerm
---     return $ ???
+bc (IfZ i cond thenTerm elseTerm) =
+  do
+    condBc <- bc cond
+    thenBc <- bc thenTerm
+    elseBc <- bc elseTerm
+    return $ condBc ++ [POP_JUMP_IF_NOT_0, length thenBc + 1] ++ thenBc ++ [JUMP, length elseBc] ++ elseBc
 bc (Let i name ty term1 term2) =
   do
     bc1 <- bc term1
@@ -130,7 +128,7 @@ bcWrite bs filename = BS.writeFile filename (encode $ BC $ fromIntegral <$> bs)
 
 -- | Lee de un archivo y lo decodifica a bytecode
 bcRead :: FilePath -> IO Bytecode
-bcRead filename = map fromIntegral <$> un32  <$> decode <$> BS.readFile filename
+bcRead filename = (map fromIntegral <$> un32) . decode <$> BS.readFile filename
 
 runBC :: MonadFD4 m => Bytecode -> m ()
 runBC c = error "implementame"
