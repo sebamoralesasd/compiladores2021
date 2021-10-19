@@ -18,6 +18,7 @@ data GlEnv = GlEnv {
   glb :: [Decl Term],   -- ^ Entorno con declaraciones globales
   tyEnv :: [(Name,Ty)],  -- ^ Entorno de tipado de declaraciones globales
   supTyEnv :: [(Name,Ty)]  -- ^ Entorno de tipado superficial de declaraciones globales
+  -- byteCodeStack :: Stack Int
 }
 
 -- | Valor del estado inicial
