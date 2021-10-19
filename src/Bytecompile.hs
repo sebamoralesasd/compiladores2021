@@ -69,6 +69,7 @@ pattern SHIFT    = 11
 pattern DROP     = 12
 pattern PRINT    = 13
 pattern PRINTN   = 14
+pattern JUMP   = 15
 
 bc :: MonadFD4 m => Term -> m Bytecode
 bc (V i var) =
@@ -82,7 +83,10 @@ bc (V i var) =
           Nothing -> failPosFD4 i $ "Variable " ++ name ++ "No declarada"
     Global _ -> undefined -- Son terminos sin nombre
 bc (Const _ (CNat n)) = return [CONST, n]
---bc (Lam i name ty term) =
+bc (Lam i name ty term) =
+  do
+    termBC <- bc term
+    return $ [FUNCTION, length termBC] ++ termBC ++ [CALL]
 bc (App i t1 t2) =
   do
     bc1 <- bc t1
