@@ -192,7 +192,7 @@ runBC' (SUB : c) e (n : m : s) =
   runBC' c e (m - n : s)
 runBC' (POP_JUMP_IF_NOT_0 : c) e s = undefined
 runBC' (FIX : c) e s = undefined
-runBC' (STOP : c) e s = undefined
+runBC' (STOP : c) e s = return ()
 runBC' (SHIFT : c) e (v : s) =
   runBC' c (v : e) s
 runBC' (DROP : c) (v : e) s =
@@ -205,6 +205,6 @@ runBC' (PRINTN : c) e (I n : s) =
 runBC' (JUMP : n : c) e s =
   runBC' (drop n c) e s
 runBC' (command : c) e s = undefined
-runBC' [] _ _ = return ()
+runBC' [] _ _ = failFD4 "Ejecución interrumpida inesperada: no hay más bytecode pero no termina en STOP"
 
 -- Funciones auxiliares para manejo de stack
