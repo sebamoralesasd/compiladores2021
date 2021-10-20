@@ -191,7 +191,11 @@ runBC' (ADD : c) e (n : m : s) =
 runBC' (SUB : c) e (n : m : s) =
   runBC' c e (m - n : s)
 runBC' (POP_JUMP_IF_NOT_0 : c) e s = undefined
-runBC' (FIX : c) e s = undefined
+runBC' (FIX : c) e (Fun e_fix c_f: s) = 
+  runBC' c e s
+  where
+    -- TODO: revisar si efectivamente genera el nudo o el shadowing interfiere
+    e_fix = Fun e_fix c_f : e
 runBC' (STOP : c) e s = return ()
 runBC' (SHIFT : c) e (v : s) =
   runBC' c (v : e) s
