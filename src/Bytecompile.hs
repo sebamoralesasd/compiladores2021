@@ -25,6 +25,16 @@ type Bytecode = [Int]
 
 newtype Bytecode32 = BC {un32 :: [Word32]}
 
+type Stack = [Val]
+
+type Env = [Val]
+
+data Val = I Int | Fun Env Bytecode | RA Env Bytecode
+
+instance Num (Val) where
+  (I x) + (I y) = I $ x + y
+  (I x) - (I y) = I $ max 0 (x - y)
+
 {- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
 instance Binary Bytecode32 where
   put (BC bs) = mapM_ putWord32le bs
@@ -156,24 +166,32 @@ bcRead :: FilePath -> IO Bytecode
 bcRead filename = (map fromIntegral <$> un32) . decode <$> BS.readFile filename
 
 runBC :: MonadFD4 m => Bytecode -> m ()
-runBC (NULL : continuation) = undefined
-runBC (RETURN : continuation) = undefined
-runBC (CONST : continuation) = undefined
-runBC (ACCESS : continuation) = undefined
-runBC (FUNCTION : continuation) = undefined
-runBC (CALL : continuation) = undefined
-runBC (ADD : continuation) = undefined
-runBC (SUB : continuation) = undefined
-runBC (POP_JUMP_IF_NOT_0 : continuation) = undefined
-runBC (FIX : continuation) = undefined
-runBC (STOP : continuation) = undefined
-runBC (SHIFT : continuation) = undefined
-runBC (DROP : continuation) = undefined
-runBC (PRINT : continuation) = undefined
-runBC (PRINTN : continuation) = undefined
-runBC (JUMP : continuation) = undefined
-runBC (command : continuation) = undefined
-runBC [] = return ()
+runBC bc = runBC' bc [] []
 
+runBC' :: MonadFD4 m => Bytecode -> Env -> Stack -> m ()
+runBC' (NULL : c) e s = undefined
+runBC' (RETURN : c) e s = undefined
+runBC' (CONST : n : c) e s =
+  runBC' c e (I n : s)
+runBC' (ACCESS : i : c) e s =
+  runBC' c e (e !! i : s)
+runBC' (FUNCTION : c) e s = undefined
+-- TODO: Revisar si esto cuenta como analizar el constructor de este tipo para tomar una decisi ́o
+runBC' (CALL : c) e (v : Fun e_f c_f : s) =
+  runBC' c_f (v : e_f) (RA e c : s)
+runBC' (ADD : c) e (n : m : s) =
+  runBC' c e (m + n : s)
+runBC' (SUB : c) e (n : m : s) =
+  runBC' c e (m - n : s)
+runBC' (POP_JUMP_IF_NOT_0 : c) e s = undefined
+runBC' (FIX : c) e s = undefined
+runBC' (STOP : c) e s = undefined
+runBC' (SHIFT : c) e s = undefined
+runBC' (DROP : c) e s = undefined
+runBC' (PRINT : c) e s = undefined
+runBC' (PRINTN : c) e s = undefined
+runBC' (JUMP : c) e s = undefined
+runBC' (command : c) e s = undefined
+runBC' [] _ _ = return ()
 
 -- Funciones auxiliares para manejo de stack
