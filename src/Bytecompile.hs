@@ -201,7 +201,19 @@ runBC' (SHIFT : c) e (v : s) =
   runBC' c (v : e) s
 runBC' (DROP : c) (v : e) s =
   runBC' c e s
-runBC' (PRINT : c) e s = undefined
+runBC' (PRINT : c') e s =
+  do
+    c <- consume c'
+    runBC' c e s
+    where
+      consume :: MonadFD4 m => Bytecode -> m Bytecode
+      consume (NULL: c) = return c
+      consume (x_i: c) = 
+        do 
+          printFD4 $ show x_i
+          consume c
+      consume _ = undefined 
+
 runBC' (PRINTN : c) e (I n : s) =
   do
     printFD4 $ show n
