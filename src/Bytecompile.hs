@@ -15,6 +15,7 @@ module Bytecompile (Bytecode, runBC, bcWrite, bcRead, bytecompileModule) where
 import Data.Binary (Binary (get, put), Word32, decode, encode)
 import Data.Binary.Get (getWord32le, isEmpty)
 import Data.Binary.Put (putWord32le)
+import Data.Char (ord)
 import qualified Data.ByteString.Lazy as BS
 import Lang
 import MonadFD4
@@ -93,6 +94,7 @@ pattern PRINT = 13
 
 pattern PRINTN = 14
 
+-- Salta n pasos hacia delante
 pattern JUMP = 15
 
 bc :: MonadFD4 m => Term -> m Bytecode
@@ -119,7 +121,7 @@ bc (App i t1 t2) =
 bc (Print i str term) =
   do
     termBC <- bc term
-    return $ [PRINT] ++ termBC ++ [NULL]
+    return $ [PRINT] ++ map ord str ++ [NULL] ++ termBC ++ [PRINTN]
 bc (BinaryOp i binOp t1 t2) =
   do
     bc1 <- bc t1
@@ -191,11 +193,17 @@ runBC' (SUB : c) e (n : m : s) =
 runBC' (POP_JUMP_IF_NOT_0 : c) e s = undefined
 runBC' (FIX : c) e s = undefined
 runBC' (STOP : c) e s = undefined
-runBC' (SHIFT : c) e s = undefined
-runBC' (DROP : c) e s = undefined
+runBC' (SHIFT : c) e (v : s) =
+  runBC' c (v : e) s
+runBC' (DROP : c) (v : e) s =
+  runBC' c e s
 runBC' (PRINT : c) e s = undefined
-runBC' (PRINTN : c) e s = undefined
-runBC' (JUMP : c) e s = undefined
+runBC' (PRINTN : c) e (I n : s) =
+  do
+    printFD4 $ show n
+    runBC' c e (I n : s)
+runBC' (JUMP : n : c) e s =
+  runBC' (drop n c) e s
 runBC' (command : c) e s = undefined
 runBC' [] _ _ = return ()
 
