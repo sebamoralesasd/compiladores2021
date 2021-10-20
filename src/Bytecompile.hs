@@ -170,12 +170,17 @@ runBC bc = runBC' bc [] []
 
 runBC' :: MonadFD4 m => Bytecode -> Env -> Stack -> m ()
 runBC' (NULL : c) e s = undefined
-runBC' (RETURN : c) e s = undefined
+runBC' (RETURN : _) _ (v : RA e c : s) =
+  runBC' c e (v : s)
 runBC' (CONST : n : c) e s =
   runBC' c e (I n : s)
 runBC' (ACCESS : i : c) e s =
   runBC' c e (e !! i : s)
-runBC' (FUNCTION : c) e s = undefined
+runBC' (FUNCTION : c') e s =
+  case c' of
+    (len : c) ->
+      let c_f = take len c in runBC' c e (Fun e c_f : s)
+    _ -> undefined
 -- TODO: Revisar si esto cuenta como analizar el constructor de este tipo para tomar una decisi ́o
 runBC' (CALL : c) e (v : Fun e_f c_f : s) =
   runBC' c_f (v : e_f) (RA e c : s)
