@@ -174,3 +174,6 @@ runBC (PRINTN : continuation) = undefined
 runBC (JUMP : continuation) = undefined
 runBC (command : continuation) = undefined
 runBC [] = return ()
+
+
+-- Funciones auxiliares para manejo de stack
