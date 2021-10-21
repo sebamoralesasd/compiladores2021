@@ -118,18 +118,6 @@ catchErrors c = catchError (Just <$> c)
                            (\e -> liftIO $ hPutStrLn stderr (show e) 
                               >> return Nothing)
 
-pop :: MonadFD4 m => m Int
-pop = 
-   do 
-      glenv <- get
-      case stack glenv of 
-         (h:t) -> return h
-         _ -> undefined 
-
-push :: MonadFD4 m => Int -> m ()
-push x = modify (\s -> s { stack = x : stack s })
-
-
 ----
 -- Importante, no eta-expandir porque GHC no hace una
 -- eta-contracción de sinónimos de tipos
