@@ -47,10 +47,10 @@ prompt = "FD4> "
 data Mode =
     Interactive
   | Typecheck
+  | Bytecompile 
+  | RunVM
 
 -- | InteractiveCEK
--- | Bytecompile 
--- | RunVM
 -- | CC
 -- | Canon
 -- | LLVM
@@ -61,9 +61,9 @@ parseMode :: Parser (Mode,Bool)
 parseMode = (,) <$> 
       (flag' Typecheck ( long "typecheck" <> short 't' <> help "Chequear tipos e imprimir el término")
   -- <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
-  -- <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
-  -- <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
-      <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
+     <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
+     <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
+     <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
   -- <|> flag' CC ( long "cc" <> short 'c' <> help "Compilar a código C")
   -- <|> flag' Canon ( long "canon" <> short 'n' <> help "Imprimir canonicalización")
   -- <|> flag' LLVM ( long "llvm" <> short 'l' <> help "Imprimir LLVM resultante")
@@ -92,10 +92,10 @@ main = execParser opts >>= go
     go (Typecheck,opt, files) =
               runOrFail $ mapM_ (typecheckFile opt) files
     -- go (InteractiveCEK,_, files) = undefined
-    -- go (Bytecompile,_, files) =
-    --           runOrFail $ mapM_ bytecompileFile files
-    -- go (RunVM,_,files) =
-    --           runOrFail $ mapM_ bytecodeRun files
+    go (Bytecompile,_, files) =
+               runOrFail $ mapM_ bytecompileFile files
+    go (RunVM,_,files) =
+              runOrFail $ mapM_ bytecodeRun files
     -- go (CC,_, files) =
     --           runOrFail $ mapM_ ccFile files
     -- go (Canon,_, files) =
@@ -309,3 +309,11 @@ typeCheckPhrase x = do
          s <- get
          ty <- tc tt (tyEnv s)
          printFD4 (ppTy ty)
+
+
+bytecompileFile :: MonadFD4 m => FilePath -> m ()
+bytecompileFile = undefined 
+
+
+bytecodeRun :: MonadFD4 m => FilePath -> m ()
+bytecodeRun = undefined 
