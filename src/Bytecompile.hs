@@ -168,7 +168,7 @@ bcRead :: FilePath -> IO Bytecode
 bcRead filename = (map fromIntegral <$> un32) . decode <$> BS.readFile filename
 
 runBC :: MonadFD4 m => Bytecode -> m ()
-runBC bc = runBC' bc [] []
+runBC byteCode = runBC' byteCode [] []
 
 runBC' :: MonadFD4 m => Bytecode -> Env -> Stack -> m ()
 runBC' (NULL : c) e s = undefined
@@ -178,11 +178,8 @@ runBC' (CONST : n : c) e s =
   runBC' c e (I n : s)
 runBC' (ACCESS : i : c) e s =
   runBC' c e (e !! i : s)
-runBC' (FUNCTION : c') e s =
-  case c' of
-    (len : c) ->
-      let c_f = take len c in runBC' c e (Fun e c_f : s)
-    _ -> undefined
+runBC' (FUNCTION : len : c) e s =
+  let c_f = take len c in runBC' c e (Fun e c_f : s)  
 -- TODO: Revisar si esto cuenta como analizar el constructor de este tipo para tomar una decisi ́o
 runBC' (CALL : c) e (v : Fun e_f c_f : s) =
   runBC' c_f (v : e_f) (RA e c : s)
@@ -190,7 +187,10 @@ runBC' (ADD : c) e (n : m : s) =
   runBC' c e (m + n : s)
 runBC' (SUB : c) e (n : m : s) =
   runBC' c e (m - n : s)
-runBC' (POP_JUMP_IF_NOT_0 : c) e s = undefined
+runBC' (POP_JUMP_IF_NOT_0 : len: c) e (I n: s) = 
+  if n == 0 
+    then runBC' c e s
+    else runBC' (drop len c) e s
 runBC' (FIX : c) e (Fun e_fix c_f: s) = 
   runBC' c e s
   where
