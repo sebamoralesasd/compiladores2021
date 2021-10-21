@@ -221,6 +221,4 @@ runBC' (PRINTN : c) e (I n : s) =
 runBC' (JUMP : n : c) e s =
   runBC' (drop n c) e s
 runBC' (command : c) e s = undefined
-runBC' [] _ _ = failFD4 "Ejecución interrumpida inesperada: no hay más bytecode pero no termina en STOP"
-
--- Funciones auxiliares para manejo de stack
+runBC' [] _ _ = failFD4 "Interrupción inesperada: no hay más bytecode pero no se consumió STOP"
