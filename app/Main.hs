@@ -36,7 +36,7 @@ import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
-import MonadFD4 (printFD4)
+import Bytecompile
 
 prompt :: String
 prompt = "FD4> "
@@ -47,7 +47,7 @@ prompt = "FD4> "
 data Mode =
     Interactive
   | Typecheck
-  | Bytecompile 
+  | Bytecompile
   | RunVM
 
 -- | InteractiveCEK
@@ -58,7 +58,7 @@ data Mode =
 
 -- | Parser de banderas
 parseMode :: Parser (Mode,Bool)
-parseMode = (,) <$> 
+parseMode = (,) <$>
       (flag' Typecheck ( long "typecheck" <> short 't' <> help "Chequear tipos e imprimir el término")
   -- <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
      <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
@@ -72,7 +72,7 @@ parseMode = (,) <$>
    <*> pure False
    -- reemplazar por la siguiente línea para habilitar opción
    -- <*> flag False True (long "optimize" <> short 'o' <> help "Optimizar código")
-  
+
 -- | Parser de opciones general, consiste de un modo y una lista de archivos a procesar
 parseArgs :: Parser (Mode,Bool, [FilePath])
 parseArgs = (\(a,b) c -> (a,b,c)) <$> parseMode <*> many (argument str (metavar "FILES..."))
@@ -86,7 +86,7 @@ main = execParser opts >>= go
      <> header "Compilador de FD4 de la materia Compiladores 2021" )
 
     go :: (Mode,Bool,[FilePath]) -> IO ()
-    go (Interactive,_,files) = 
+    go (Interactive,_,files) =
               do runFD4 (runInputT defaultSettings (repl files))
                  return ()
     go (Typecheck,opt, files) =
@@ -180,14 +180,14 @@ typecheckDecl (SDecl (Decl p x t)) = do
         return dd
 
 handleDecl ::  MonadFD4 m => SDecl -> m ()
-handleDecl ( SinTy pos name sty ) = 
+handleDecl ( SinTy pos name sty ) =
   do
     -- TODO cambiar por interfaz del estilo elabSTy
     printFD4 "Creare un alias"
     result <- lookupSTy name
     case result of
       Just ty -> failPosFD4 pos $ "El alias '" ++ name ++ "' ya se definió anteriormente como " -- TODO: Agregar ty para error más expresivo
-      Nothing -> do 
+      Nothing -> do
                     ty <- desugarTy sty
                     addsupTy name ty
 
@@ -195,6 +195,7 @@ handleDecl d = do
         (Decl p x tt) <- typecheckDecl d
         te <- eval tt
         addDecl (Decl p x te)
+
 
 data Command = Compile CompileForm
              | PPrint String
@@ -276,7 +277,7 @@ compilePhrase ::  MonadFD4 m => String -> m ()
 compilePhrase x =
   do
     dot <- parseIO "<interactive>" declOrTm x
-    case dot of 
+    case dot of
       Left d  -> handleDecl d
       Right t -> handleTerm t
 
@@ -294,9 +295,9 @@ printPhrase x =
   do
     x' <- parseIO "<interactive>" tm x
     ex <- elab x'
-    t  <- case x' of 
+    t  <- case x' of
            (SV p f) -> maybe ex id <$> lookupDecl f
-           _       -> return ex  
+           _       -> return ex
     printFD4 "NTerm:"
     printFD4 (show x')
     printFD4 "\nTerm:"
@@ -310,10 +311,55 @@ typeCheckPhrase x = do
          ty <- tc tt (tyEnv s)
          printFD4 (ppTy ty)
 
+-- TODO: Refactor Main
+-- TODO: Revisar si se puede fusionar con loadFile, handleDecl, y handleTerm para no tener duplicación de código
+
+sdeclToDecl :: MonadFD4 m => SDecl -> m [Decl Term]
+sdeclToDecl ( SinTy pos name sty ) =
+  do
+    -- TODO cambiar por interfaz del estilo elabSTy
+    printFD4 "Creare un alias"
+    result <- lookupSTy name
+    case result of
+      Just ty -> failPosFD4 pos $ "El alias '" ++ name ++ "' ya se definió anteriormente como " -- TODO: Agregar ty para error más expresivo
+      Nothing -> do
+                    ty <- desugarTy sty
+                    addsupTy name ty
+    return []
+
+sdeclToDecl d = do
+        (Decl p x tt) <- typecheckDecl d
+        te <- eval tt
+        return [Decl p x te]
 
 bytecompileFile :: MonadFD4 m => FilePath -> m ()
-bytecompileFile = undefined 
+bytecompileFile f =
+  do
+    printFD4 ("Abriendo "++f++"...")
+    let filename = reverse(dropWhile isSpace (reverse f))
+    x <- liftIO $ catch (readFile filename)
+               (\e -> do let err = show (e :: IOException)
+                         hPutStrLn stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err)
+                         return "")
+    decls <- parseIO filename program x
+
+    return ()
+    where
+      declsToTerm :: MonadFD4 m => [Decl Term] -> m Term
+      -- TODO: Cambiar el tipo Nat acordemente
+      declsToTerm [] = undefined 
+      declsToTerm [Decl pos name t] = return $ Let pos name NatTy t (V pos (Free name))
+      declsToTerm ((Decl pos name t): k) =
+        do 
+          kt <- declsToTerm k
+          return $ Let pos name NatTy t kt
+      sdeclsToTerm :: MonadFD4 m => [SDecl] -> m Term
+      sdeclsToTerm sDecls =
+        do
+          decls <- mapM sdeclToDecl sDecls
+          declsToTerm (join decls)
+
 
 
 bytecodeRun :: MonadFD4 m => FilePath -> m ()
-bytecodeRun = undefined 
+bytecodeRun = undefined
