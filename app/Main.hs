@@ -178,6 +178,7 @@ typecheckDecl (SDecl (Decl p x t)) = do
         let dd = (Decl p x tt)
         tcDecl dd
         return dd
+typecheckDecl (SinTy _ _ _) = undefined
 
 handleDecl ::  MonadFD4 m => SDecl -> m ()
 handleDecl ( SinTy pos name sty ) =
@@ -313,45 +314,20 @@ typeCheckPhrase x = do
 
 -- TODO: Refactor Main
 -- TODO: Revisar si se puede fusionar con loadFile, handleDecl, y handleTerm para no tener duplicación de código
-
-sdeclToDecl :: MonadFD4 m => SDecl -> m [Decl Term]
-sdeclToDecl ( SinTy pos name sty ) =
-  do
-    -- TODO cambiar por interfaz del estilo elabSTy
-    printFD4 "Creare un alias"
-    result <- lookupSTy name
-    case result of
-      Just ty -> failPosFD4 pos $ "El alias '" ++ name ++ "' ya se definió anteriormente como " -- TODO: Agregar ty para error más expresivo
-      Nothing -> do
-                    ty <- desugarTy sty
-                    addsupTy name ty
-    return []
-
-sdeclToDecl d = do
-        (Decl p x tt) <- typecheckDecl d
-        te <- eval tt
-        return [Decl p x te]
-
 bytecompileFile :: MonadFD4 m => FilePath -> m ()
 bytecompileFile f =
   do
-    printFD4 ("Abriendo "++f++"...")
-    let filename = reverse(dropWhile isSpace (reverse f))
-    x <- liftIO $ catch (readFile filename)
-               (\e -> do let err = show (e :: IOException)
-                         hPutStrLn stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err)
-                         return "")
-    decls <- parseIO filename program x
-
-    return ()
-    where
-      sdeclsToTerm :: MonadFD4 m => [SDecl] -> m Term
-      sdeclsToTerm sDecls =
-        do
-          decls <- mapM sdeclToDecl sDecls
-          declsToTerm (join decls)
-
-
+    -- Compilar archivo FD4 azucarado, guardando las
+    -- declaraciones core y los sinonimos de tipos en MonadFD4
+    -- TODO: cambiar (no deberia usar eval)
+    compileFile f
+    -- leer declaraciones desde MonadFD4
+    decls <- getDecls
+    -- generar bytecode
+    bytecode <- bytecompileModule decls
+    -- escribir bytecode a un archivo
+    printFD4 $ show bytecode
+    liftIO $ bcWrite bytecode "file.byte"
 
 bytecodeRun :: MonadFD4 m => FilePath -> m ()
 bytecodeRun = undefined

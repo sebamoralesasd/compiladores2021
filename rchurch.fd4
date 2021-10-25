@@ -4,3 +4,4 @@ let rch = fun(z:Nat)->
     ifz n then z else s (f (n-1)) (n-1)
 
 let suma2 = fun(x:Nat) -> fun(y:Nat )-> rch y (fun (w:Nat) -> fun (z:Nat) -> w + 1) x
+
