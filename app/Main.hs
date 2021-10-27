@@ -149,39 +149,70 @@ loadFile f = do
     setLastFile filename
     parseIO filename program x
 
+fetchSDecls :: MonadFD4 m => FilePath -> m [SDecl]
+fetchSDecls f = do
+  printFD4 ("Abriendo "++f++"...")
+  let filename = reverse(dropWhile isSpace (reverse f))
+  x <- liftIO $ catch (readFile filename)
+    (\e -> do 
+             let err = show (e :: IOException)
+             hPutStrLn stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err)
+             return "")
+  decls <- parseIO filename program x
+  return decls
+
 compileFile ::  MonadFD4 m => FilePath -> m ()
 compileFile f = do
-    printFD4 ("Abriendo "++f++"...")
-    let filename = reverse(dropWhile isSpace (reverse f))
-    x <- liftIO $ catch (readFile filename)
-               (\e -> do let err = show (e :: IOException)
-                         hPutStrLn stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err)
-                         return "")
-    decls <- parseIO filename program x
-    mapM_ handleDecl decls
+  sDecls <- fetchSDecls f
+  mapM_ handleDecl sDecls
 
 typecheckFile ::  MonadFD4 m => Bool -> FilePath -> m ()
 typecheckFile opt f = do
     printFD4  ("Chequeando "++f)
-    decls <- loadFile f
-    ppterms <- mapM (typecheckDecl >=> ppDecl) decls
+    sdecls <- loadFile f
+    ppterms <- mapM typecheckSDeclAndPP sdecls
     mapM_ printFD4 ppterms
 
+typecheckSDeclAndPP :: MonadFD4 m => SDecl -> m String
+typecheckSDeclAndPP sinTy@SinTy{} = undefined -- TODO: definir el pp para sinTy
+typecheckSDeclAndPP sdecl@SDecl{} = 
+  do
+    listD <- desugarDecl sdecl
+    case listD of
+      [decl] -> do
+        typecheckDecl decl
+        ppDecl decl
+      _ -> failFD4 "error: ver despues"
+    
 parseIO ::  MonadFD4 m => String -> P a -> String -> m a
 parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
-typecheckDecl :: MonadFD4 m => SDecl -> m (Decl Term)
-typecheckDecl (SDecl (Decl p x t)) = do
-        tt <- (elab t)
-        let dd = (Decl p x tt)
+typecheckDecl :: MonadFD4 m => Decl Term -> m ()
+typecheckDecl dd@(Decl p x t) = 
+  do
         tcDecl dd
-        return dd
-typecheckDecl (SinTy _ _ _) = undefined
+        return ()
 
 handleDecl ::  MonadFD4 m => SDecl -> m ()
-handleDecl ( SinTy pos name sty ) =
+handleDecl sinTy@SinTy{} =
+  do
+    desugarDecl sinTy
+    return ()
+handleDecl sdecl = do
+        listD <- desugarDecl sdecl
+        case listD of
+          [Decl p x tt] ->
+            do
+              typecheckDecl (Decl p x tt)
+              te <- eval tt
+              addDecl (Decl p x te)
+          _ -> failFD4 "TODO"
+
+------------------
+desugarDecl :: MonadFD4 m => SDecl -> m [Decl Term]
+desugarDecl ( SinTy pos name sty ) =
   do
     -- TODO cambiar por interfaz del estilo elabSTy
     printFD4 "Creare un alias"
@@ -191,11 +222,13 @@ handleDecl ( SinTy pos name sty ) =
       Nothing -> do
                     ty <- desugarTy sty
                     addsupTy name ty
-
-handleDecl d = do
-        (Decl p x tt) <- typecheckDecl d
-        te <- eval tt
-        addDecl (Decl p x te)
+                    return []
+desugarDecl sDecl@(SDecl decl) = 
+  do 
+    let (Decl i name snTerm) = getDecl sDecl
+    term <- elab snTerm
+    return [Decl i name term]
+------------------
 
 
 data Command = Compile CompileForm
@@ -319,12 +352,13 @@ bytecompileFile f =
   do
     -- Compilar archivo FD4 azucarado, guardando las
     -- declaraciones core y los sinonimos de tipos en MonadFD4
-    -- TODO: cambiar (no deberia usar eval)
-    compileFile f
+
     -- leer declaraciones desde MonadFD4
-    decls <- getDecls
+    sdecls <- fetchSDecls f
+
+    lldecls <- mapM desugarDecl sdecls
     -- generar bytecode
-    bytecode <- bytecompileModule decls
+    bytecode <- bytecompileModule (join lldecls)
     -- escribir bytecode a un archivo
     printFD4 $ show bytecode
     liftIO $ bcWrite bytecode "file.byte"
