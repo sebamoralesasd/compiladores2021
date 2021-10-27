@@ -363,4 +363,7 @@ bytecompileFile f =
     liftIO $ bcWrite bytecode "file.byte"
 
 bytecodeRun :: MonadFD4 m => FilePath -> m ()
-bytecodeRun = undefined
+bytecodeRun file = 
+  do
+    byteCode <- liftIO (bcRead file)
+    runBC byteCode
