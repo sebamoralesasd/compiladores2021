@@ -106,7 +106,7 @@ bc (V i var) =
         x <- lookupDecl name
         case x of
           Just dec -> bc dec
-          Nothing -> failPosFD4 i $ "Variable " ++ name ++ "No declarada"
+          Nothing -> failPosFD4 i $ "Variable " ++ name ++ " no declarada"
     Global _ -> undefined -- Son terminos sin nombre
 bc (Const _ (CNat n)) = return [CONST, n]
 bc (Lam i name ty term) =

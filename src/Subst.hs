@@ -22,7 +22,7 @@ import Data.List ( elemIndex )
 varChanger :: (Int -> Pos -> Name -> Term) --que hacemos con las variables localmente libres
            -> (Int -> Pos -> Int ->  Term) --que hacemos con los indices de De Bruijn
            -> Term -> Term
-varChanger local bound t = go 0 t where
+varChanger local bound = go 0 where
   go n   (V p (Bound i)) = bound n p i
   go n   (V p (Free x)) = local n p x 
   go n   (V p (Global x)) = V p (Global x) 
@@ -84,10 +84,10 @@ substN ns = varChanger (\_ p n -> V p (Free n)) bnd
 -- Algunas definiciones auxiliares:
 
 subst :: Term -> Term -> Term
-subst n m = substN [n] m
+subst n = substN [n]
 
 close :: Name -> Term -> Term
 close nm = closeN [nm]
 
 open :: Name -> Term -> Term
-open x t = openN [x] t
+open x = openN [x]
