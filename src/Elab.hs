@@ -33,7 +33,7 @@ desugarTy (STypeSinonym name) = do
   t <- lookupSTy name
   case t of
     -- TODO: Cambiar NoPos por name.
-    Nothing -> failPosFD4 NoPos $ "Tipo no declarado."
+    Nothing -> failPosFD4 NoPos "Tipo no declarado."
     Just ty -> return ty
 
 -- | Transforma términos azucarados en su notación core.
