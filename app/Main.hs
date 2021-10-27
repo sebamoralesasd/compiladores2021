@@ -154,12 +154,11 @@ fetchSDecls f = do
   printFD4 ("Abriendo "++f++"...")
   let filename = reverse(dropWhile isSpace (reverse f))
   x <- liftIO $ catch (readFile filename)
-    (\e -> do 
+    (\e -> do
              let err = show (e :: IOException)
              hPutStrLn stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err)
              return "")
-  decls <- parseIO filename program x
-  return decls
+  parseIO filename program x
 
 compileFile ::  MonadFD4 m => FilePath -> m ()
 compileFile f = do
@@ -175,7 +174,7 @@ typecheckFile opt f = do
 
 typecheckSDeclAndPP :: MonadFD4 m => SDecl -> m String
 typecheckSDeclAndPP sinTy@SinTy{} = undefined -- TODO: definir el pp para sinTy
-typecheckSDeclAndPP sdecl@SDecl{} = 
+typecheckSDeclAndPP sdecl@SDecl{} =
   do
     listD <- desugarDecl sdecl
     case listD of
@@ -183,14 +182,14 @@ typecheckSDeclAndPP sdecl@SDecl{} =
         typecheckDecl decl
         ppDecl decl
       _ -> failFD4 "error: ver despues"
-    
+
 parseIO ::  MonadFD4 m => String -> P a -> String -> m a
 parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
 typecheckDecl :: MonadFD4 m => Decl Term -> m ()
-typecheckDecl dd@(Decl p x t) = 
+typecheckDecl dd@(Decl p x t) =
   do
         tcDecl dd
         return ()
@@ -223,8 +222,8 @@ desugarDecl ( SinTy pos name sty ) =
                     ty <- desugarTy sty
                     addsupTy name ty
                     return []
-desugarDecl sDecl@(SDecl decl) = 
-  do 
+desugarDecl sDecl@(SDecl decl) =
+  do
     let (Decl i name snTerm) = getDecl sDecl
     term <- elab snTerm
     return [Decl i name term]
@@ -248,7 +247,7 @@ data InteractiveCommand = Cmd [String] String (String -> Command) String
 -- | Parser simple de comando interactivos
 interpretCommand :: String -> IO Command
 interpretCommand x
-  =  if isPrefixOf ":" x then
+  =  if ":" `isPrefixOf` x then
        do  let  (cmd,t')  =  break isSpace x
                 t         =  dropWhile isSpace t'
            --  find matching commands
