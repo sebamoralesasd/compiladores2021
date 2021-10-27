@@ -19,6 +19,7 @@ import Data.Char (ord)
 import qualified Data.ByteString.Lazy as BS
 import Lang
 import MonadFD4
+import Subst (close)
 
 type Opcode = Int
 
@@ -153,15 +154,15 @@ type Module = [Decl Term]
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule mdl = 
   do 
-    t <- declsToTerm mdl
-    tBC <- bc t
-    return $ tBC ++ [PRINTN] ++ [STOP]
+    term <- declsToTerm mdl
+    termByteCode <- bc term
+    return $ termByteCode ++ [PRINTN] ++ [STOP]
     where
       declsToTerm :: MonadFD4 m => [Decl Term] -> m Term
       -- TODO: Cambiar el tipo Nat acordemente
       declsToTerm [] = undefined 
       -- TODO: recorrer t para los Global
-      declsToTerm [Decl pos name t] = return $ Let pos name NatTy t (V pos (Free name))
+      declsToTerm [Decl pos name t] = return $ close name $ Let pos name NatTy t (V pos (Free name))
       declsToTerm ((Decl pos name t): k) =
         do 
           kt <- declsToTerm k
