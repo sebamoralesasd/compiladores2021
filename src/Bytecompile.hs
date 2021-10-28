@@ -10,7 +10,7 @@
 --
 -- Este módulo permite compilar módulos a la BVM. También provee una implementación de la BVM
 -- para ejecutar bytecode.
-module Bytecompile (Bytecode, runBC, bcWrite, bcRead, bytecompileModule) where
+module Bytecompile (Bytecode, runBC, bcWrite, bcRead, bytecompileModule, humanReadableBC) where
 
 import Data.Binary (Binary (get, put), Word32, decode, encode)
 import Data.Binary.Get (getWord32le, isEmpty)
@@ -185,6 +185,8 @@ bcRead filename = (map fromIntegral <$> un32) . decode <$> BS.readFile filename
 runBC :: MonadFD4 m => Bytecode -> m ()
 runBC byteCode = runBC' byteCode [] []
 
+
+
 runBC' :: MonadFD4 m => Bytecode -> Env -> Stack -> m ()
 runBC' (NULL : c) e s = undefined
 runBC' (RETURN : _) _ (v : RA e c : s) =
@@ -236,3 +238,83 @@ runBC' (JUMP : n : c) e s =
   runBC' (drop n c) e s
 runBC' (command : c) e s = undefined
 runBC' [] _ _ = failFD4 "Interrupción inesperada: no hay más bytecode pero no se consumió STOP"
+
+
+-- Aux
+humanReadableOpcode :: Opcode -> String
+humanReadableOpcode RETURN = "RETURN"
+humanReadableOpcode NULL = "NULL"
+humanReadableOpcode CONST = "CONST"
+humanReadableOpcode ACCESS = "ACCESS"
+humanReadableOpcode FUNCTION = "FUNCTION"
+humanReadableOpcode CALL = "CALL"
+humanReadableOpcode ADD = "ADD"
+humanReadableOpcode SUB = "SUB"
+humanReadableOpcode POP_JUMP_IF_NOT_0 = "POP_JUMP_IF_NOT_0"
+humanReadableOpcode FIX = "FIX"
+humanReadableOpcode PRINT = "PRINT"
+humanReadableOpcode PRINTN = "PRINTN"
+humanReadableOpcode JUMP = "JUMP"
+humanReadableOpcode SHIFT = "SHIFT"
+humanReadableOpcode DROP = "DROP"
+humanReadableOpcode STOP = "STOP"
+humanReadableOpcode n = "Literal " ++ show n
+
+humanReadableBC :: Bytecode -> [String]
+humanReadableBC = map humanReadableOpcode
+
+
+
+runBCstep' :: MonadFD4 m => (Bytecode, Env, Stack) -> m (Bytecode, Env, Stack)
+runBCstep' ((NULL : c), e, s) = undefined
+runBCstep' ((RETURN : _), _, (v : RA e c : s)) =
+  return (c, e, (v : s))
+-- runBCstep' (CONST : n : c) e s =
+--   runBCstep' c e (I n : s)
+-- runBCstep' (ACCESS : i : c) e s =
+--   runBCstep' c e (e !! i : s)
+-- runBCstep' (FUNCTION : len : c) e s =
+--   let c_f = take len c in runBCstep' c e (Fun e c_f : s)  
+-- runBCstep' (CALL : c) e (v : Fun e_f c_f : s) =
+--   runBCstep' c_f (v : e_f) (RA e c : s)
+-- runBCstep' (ADD : c) e (n : m : s) =
+--   runBCstep' c e (m + n : s)
+-- runBCstep' (SUB : c) e (n : m : s) =
+--   runBCstep' c e (m - n : s)
+-- runBCstep' (POP_JUMP_IF_NOT_0 : len: c) e (I n: s) = 
+--   if n == 0 
+--     then runBCstep' c e s
+--     else runBCstep' (drop len c) e s
+-- runBCstep' (FIX : c) e (Fun e_fix c_f: s) = 
+--   runBCstep' c e s
+--   where
+--     -- TODO: revisar si efectivamente genera el nudo o el shadowing interfiere
+--     e_fix = Fun e_fix c_f : e
+-- runBCstep' (STOP : c) e s = return ()
+-- runBCstep' (SHIFT : c) e (v : s) =
+--   runBCstep' c (v : e) s
+-- runBCstep' (DROP : c) (v : e) s =
+--   runBCstep' c e s
+-- runBCstep' (PRINT : c') e s =
+--   do
+--     c <- consume c'
+--     runBCstep' c e s
+--     where
+--       consume :: MonadFD4 m => Bytecode -> m Bytecode
+--       consume (NULL: c) = return c
+--       consume (x_i: c) = 
+--         do 
+--           printFD4 $ show x_i
+--           consume c
+--       consume _ = undefined 
+
+-- runBCstep' (PRINTN : c) e (I n : s) =
+--   do
+--     printFD4 $ show n
+--     runBCstep' c e (I n : s)
+-- runBCstep' (JUMP : n : c) e s =
+--   runBCstep' (drop n c) e s
+-- runBCstep' (command : c) e s = undefined
+-- runBCstep' [] _ _ = failFD4 "Interrupción inesperada: no hay más bytecode pero no se consumió STOP"
+
+runBCstep' x = undefined

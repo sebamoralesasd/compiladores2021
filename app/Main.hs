@@ -360,6 +360,7 @@ bytecompileFile f =
     bytecode <- bytecompileModule (join lldecls)
     -- escribir bytecode a un archivo
     printFD4 $ show bytecode
+    printFD4 $ show $ humanReadableBC bytecode
     liftIO $ bcWrite bytecode "file.byte"
 
 bytecodeRun :: MonadFD4 m => FilePath -> m ()
