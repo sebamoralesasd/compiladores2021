@@ -148,8 +148,8 @@ bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule mdl =
   do
     term <- declsToLetInRecursive mdl
-    -- ppTerm <- pp term
-    -- printFD4 ppTerm
+    ppTerm <- pp term
+    printFD4 ppTerm
     termByteCode <- bc term
     return $ termByteCode ++ [PRINTN] ++ [STOP]
   where
