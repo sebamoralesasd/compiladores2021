@@ -37,6 +37,7 @@ import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
 import Bytecompile
+import Data.List.Extra (replace)
 
 prompt :: String
 prompt = "FD4> "
@@ -361,7 +362,7 @@ bytecompileFile f =
     -- escribir bytecode a un archivo
     printFD4 $ show bytecode
     printFD4 $ show $ humanReadableBC bytecode
-    liftIO $ bcWrite bytecode "file.byte"
+    liftIO $ bcWrite bytecode (replace ".fd4" ".byte" f)
 
 bytecodeRun :: MonadFD4 m => FilePath -> m ()
 bytecodeRun file = 

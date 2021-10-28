@@ -103,19 +103,14 @@ pattern JUMP = 15
 bc :: MonadFD4 m => Term -> m Bytecode
 bc (V i var) =
   case var of
-    (Bound index) -> return [ACCESS, index]
-    (Free name) ->
-      do
-        x <- lookupDecl name
-        case x of
-          Just dec -> bc dec
-          Nothing -> failPosFD4 i $ "Variable " ++ name ++ " no declarada"
+    Bound index -> return [ACCESS, index]
+    Free name -> undefined 
     Global _ -> undefined -- Son terminos sin nombre
 bc (Const _ (CNat n)) = return [CONST, n]
 bc (Lam i name ty term) =
   do
     termBC <- bc term
-    return $ [FUNCTION, length termBC] ++ termBC ++ [CALL]
+    return $ [FUNCTION, length termBC] ++ termBC ++ [RETURN]
 bc (App i t1 t2) =
   do
     bc1 <- bc t1
@@ -156,21 +151,21 @@ type Module = [Decl Term]
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule mdl =
   do
-    term <- declsToTerm mdl
+    term <- declsToLetInRecursive mdl
     -- ppTerm <- pp term
     -- printFD4 ppTerm
     termByteCode <- bc term
     return $ termByteCode ++ [PRINTN] ++ [STOP]
   where
-    declsToTerm :: MonadFD4 m => [Decl Term] -> m Term
+    declsToLetInRecursive :: MonadFD4 m => [Decl Term] -> m Term
     -- TODO: Cambiar el tipo Nat acordemente
-    declsToTerm [] = undefined
+    declsToLetInRecursive [] = undefined
     -- TODO: recorrer t para los Global
-    declsToTerm [Decl pos name t] = return $ Let pos name NatTy t (V pos (Bound 0))
-    declsToTerm ((Decl pos name t) : k) =
+    declsToLetInRecursive [Decl pos name t] = return $ Let pos name NatTy t (V pos (Bound 0))
+    declsToLetInRecursive ((Decl pos name t) : k) =
       do
-        kt <- declsToTerm k
-        return $ Let pos name NatTy t kt
+        kLetInRecursive <- declsToLetInRecursive k
+        return $ Let pos name NatTy t kLetInRecursive
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
 bcWrite :: Bytecode -> FilePath -> IO ()
@@ -189,13 +184,17 @@ bcRead filename = (map fromIntegral <$> un32) . decode <$> BS.readFile filename
 runBC :: MonadFD4 m => Bytecode -> m ()
 runBC byteCode = runBC' byteCode [] []
 
+-- TODO: Ver si se puede ser más expressivos
 runBC' :: MonadFD4 m => Bytecode -> Env -> Stack -> m ()
 runBC' c e s =
   do
     printFD4 $ show (humanReadableBC c, e, s)
     nextStep <- runBCstep (c, e, s)
     case nextStep of
-      ([], _, _) -> return ()
+      ([], _, _) -> 
+        do 
+          printFD4 "Se terminó el código"
+          return ()
       (c', e', s') -> runBC' c' e' s'
 
 -- Aux
