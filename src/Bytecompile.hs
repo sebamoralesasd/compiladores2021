@@ -166,7 +166,7 @@ bytecompileModule mdl =
     -- TODO: Cambiar el tipo Nat acordemente
     declsToTerm [] = undefined
     -- TODO: recorrer t para los Global
-    declsToTerm [Decl pos name t] = return $ close name $ Let pos name NatTy t (V pos (Free name))
+    declsToTerm [Decl pos name t] = return $ Let pos name NatTy t (V pos (Bound 0))
     declsToTerm ((Decl pos name t) : k) =
       do
         kt <- declsToTerm k
