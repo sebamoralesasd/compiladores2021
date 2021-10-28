@@ -35,10 +35,6 @@ type Env = [Val]
 data Val = I Int | Fun Env Bytecode | RA Env Bytecode
   deriving Show
 
-instance Num (Val) where
-  (I x) + (I y) = I $ x + y
-  (I x) - (I y) = I $ max 0 (x - y)
-
 {- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
 instance Binary Bytecode32 where
   put (BC bs) = mapM_ putWord32le bs
@@ -233,10 +229,10 @@ runBCstep (FUNCTION : len : c, e, s) =
   let c_f = take len c in return (c, e, Fun e c_f : s)
 runBCstep (CALL : c, e, v : Fun e_f c_f : s) =
   return (c_f, v : e_f, RA e c : s)
-runBCstep (ADD : c, e, n : m : s) =
-  return (c, e, m + n : s)
-runBCstep (SUB : c, e, n : m : s) =
-  return (c, e, m - n : s)
+runBCstep (ADD : c, e, I n : I m : s) =
+  return (c, e, I (m + n) : s)
+runBCstep (SUB : c, e, I n : I m : s) =
+  return (c, e, I (max 0 (m - n)) : s)
 runBCstep (POP_JUMP_IF_NOT_0 : len : c, e, I n : s) =
   if n == 0
     then return (c, e, s)
