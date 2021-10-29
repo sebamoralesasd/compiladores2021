@@ -19,8 +19,8 @@ import qualified Data.ByteString.Lazy as BS
 import Data.Char (ord)
 import Lang
 import MonadFD4
-import Subst (close)
 import PPrint (pp)
+import Subst (close)
 
 type Opcode = Int
 
@@ -33,7 +33,7 @@ type Stack = [Val]
 type Env = [Val]
 
 data Val = I Int | Fun Env Bytecode | RA Env Bytecode
-  deriving Show
+  deriving (Show)
 
 {- Esta instancia explica como codificar y decodificar Bytecode de 32 bits -}
 instance Binary Bytecode32 where
@@ -79,7 +79,7 @@ pattern ADD = 6
 
 pattern SUB = 7
 
-pattern POP_JUMP_IF_NOT_0 = 8
+pattern IFZ = 8
 
 pattern FIX = 9
 
@@ -100,13 +100,14 @@ bc :: MonadFD4 m => Term -> m Bytecode
 bc (V i var) =
   case var of
     Bound index -> return [ACCESS, index]
-    Free name -> undefined 
+    Free name -> undefined
     Global _ -> undefined -- Son terminos sin nombre
 bc (Const _ (CNat n)) = return [CONST, n]
 bc (Lam i name ty term) =
   do
     termBC <- bc term
-    return $ [FUNCTION, length termBC] ++ termBC ++ [RETURN]
+    let innerFunction = termBC ++ [RETURN]
+    return $ [FUNCTION, length innerFunction] ++ innerFunction
 bc (App i t1 t2) =
   do
     bc1 <- bc t1
@@ -135,7 +136,7 @@ bc (IfZ i cond thenTerm elseTerm) =
     condBc <- bc cond
     thenBc <- bc thenTerm
     elseBc <- bc elseTerm
-    return $ condBc ++ [POP_JUMP_IF_NOT_0, length thenBc + 1] ++ thenBc ++ [JUMP, length elseBc] ++ elseBc
+    return $ condBc ++ [IFZ, length thenBc + 1] ++ thenBc ++ [JUMP, length elseBc] ++ elseBc
 bc (Let i name ty term1 term2) =
   do
     bc1 <- bc term1
@@ -187,8 +188,8 @@ runBC' c e s =
     printFD4 $ show (humanReadableBC c, e, s)
     nextStep <- runBCstep (c, e, s)
     case nextStep of
-      ([], _, _) -> 
-        do 
+      ([], _, _) ->
+        do
           printFD4 "Se terminó el código"
           return ()
       (c', e', s') -> runBC' c' e' s'
@@ -203,7 +204,7 @@ humanReadableOpcode FUNCTION = "FUNCTION"
 humanReadableOpcode CALL = "CALL"
 humanReadableOpcode ADD = "ADD"
 humanReadableOpcode SUB = "SUB"
-humanReadableOpcode POP_JUMP_IF_NOT_0 = "POP_JUMP_IF_NOT_0"
+humanReadableOpcode IFZ = "IFZ"
 humanReadableOpcode FIX = "FIX"
 humanReadableOpcode PRINT = "PRINT"
 humanReadableOpcode PRINTN = "PRINTN"
@@ -233,7 +234,7 @@ runBCstep (ADD : c, e, I n : I m : s) =
   return (c, e, I (m + n) : s)
 runBCstep (SUB : c, e, I n : I m : s) =
   return (c, e, I (max 0 (m - n)) : s)
-runBCstep (POP_JUMP_IF_NOT_0 : len : c, e, I n : s) =
+runBCstep (IFZ : len : c, e, I n : s) =
   if n == 0
     then return (c, e, s)
     else return (drop len c, e, s)
