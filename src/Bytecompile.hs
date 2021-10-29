@@ -226,8 +226,8 @@ runBCstep (CONST : n : c, e, s) =
   return (c, e, I n : s)
 runBCstep (ACCESS : i : c, e, s) =
   return (c, e, e !! i : s)
-runBCstep (FUNCTION : len : c, e, s) =
-  let c_f = take len c in return (c, e, Fun e c_f : s)
+runBCstep (FUNCTION : len : c_raw, e, s) =
+  let (c_f, c) = splitAt len c_raw in return (c, e, Fun e c_f : s)
 runBCstep (CALL : c, e, v : Fun e_f c_f : s) =
   return (c_f, v : e_f, RA e c : s)
 runBCstep (ADD : c, e, I n : I m : s) =
