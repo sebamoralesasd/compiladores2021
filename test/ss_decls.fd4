@@ -11,3 +11,5 @@ let rec ack (m:Nat) (n:Nat) : Nat = ifz m then succ n else (ifz n then ack (pred
 type NatXNat = Nat -> Nat
 
 let apply (f: NatXNat) (x: Nat) :Nat = f x
+
+let returnValue:Nat = ack 2 2
