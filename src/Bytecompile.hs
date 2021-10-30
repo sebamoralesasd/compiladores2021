@@ -136,7 +136,7 @@ bc (IfZ i cond thenTerm elseTerm) =
     condBc <- bc cond
     thenBc <- bc thenTerm
     elseBc <- bc elseTerm
-    return $ condBc ++ [IFZ, length thenBc + 1] ++ thenBc ++ [JUMP, length elseBc] ++ elseBc
+    return $ condBc ++ [IFZ, length thenBc + 2] ++ thenBc ++ [JUMP, length elseBc] ++ elseBc
 bc (Let i name ty term1 term2) =
   do
     bc1 <- bc term1
@@ -191,7 +191,7 @@ runBC byteCode = runBC' byteCode [] []
 runBC' :: MonadFD4 m => Bytecode -> Env -> Stack -> m ()
 runBC' c e s =
   do
-    printFD4 $ show (humanReadableBC c, e, s)
+    -- printFD4 $ show (humanReadableBC c, e, s)
     nextStep <- runBCstep (c, e, s)
     case nextStep of
       ([], _, _) ->
@@ -241,9 +241,9 @@ runBCstep (ADD : c, e, I n : I m : s) =
 runBCstep (SUB : c, e, I n : I m : s) =
   return (c, e, I (max 0 (m - n)) : s)
 runBCstep (IFZ : len : c, e, I n : s) =
-  if n == 0
-    then return (c, e, s)
-    else return (drop len c, e, s)
+    if n == 0
+      then return (c, e, s)
+      else return (drop len c, e, s)
 runBCstep (FIX : c, e, Fun e_fix c_f : s) =
   return (c, e, e_fix:s)
   where
@@ -273,4 +273,7 @@ runBCstep (PRINTN : c, e, I n : s) =
 runBCstep (JUMP : n : c, e, s) =
   return (drop n c, e, s)
 runBCstep ([], _, _) = failFD4 "Interrupción inesperada: no hay más bytecode pero no se consumió STOP"
-runBCstep (command : c, e, s) = failFD4 "ERROR: Comando inesperado."
+runBCstep (command : c, e, s) = 
+  do
+    printFD4 $ show $ humanReadableBC $ command : c
+    failFD4 "ERROR: Comando inesperado."
