@@ -162,6 +162,8 @@ bytecompileModule mdl =
   where
     declsToLetIn :: MonadFD4 m => [Decl Term] -> m Term
     declsToLetIn [] = undefined
+    -- TODO: corregir el tipo de let in. No es Nat en todos los casos.
+    -- Deberia traer el tipo de t.
     declsToLetIn [Decl pos name t] = return $ Let pos name NatTy t (V pos (Bound 0))
     declsToLetIn ((Decl pos name t) : k) =
       do
@@ -243,10 +245,10 @@ runBCstep (IFZ : len : c, e, I n : s) =
     then return (c, e, s)
     else return (drop len c, e, s)
 runBCstep (FIX : c, e, Fun e_fix c_f : s) =
-  return (c, e, s)
+  return (c, e, e_fix:s)
   where
     -- TODO: revisar si efectivamente genera el nudo o el shadowing interfiere
-    e_fix = Fun e_fix c_f : e
+    e_fix = Fun (e_fix:e) c_f
 runBCstep ([STOP], e, s) = return ([], e, s)
 runBCstep (SHIFT : c, e, v : s) =
   return (c, v : e, s)
