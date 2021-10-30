@@ -145,24 +145,28 @@ bc (Let i name ty term1 term2) =
 
 type Module = [Decl Term]
 
+setFreeVar :: Var -> Var
+setFreeVar (Global name) = Free name
+setFreeVar v = v
+
 bytecompileModule :: MonadFD4 m => Module -> m Bytecode
 bytecompileModule mdl =
   do
-    term <- declsToLetInRecursive mdl
+    -- fmap interno sobre Decl, fmap externo sobre Term.
+    -- Tanto Term como Decl son funtores.
+    term <- declsToLetIn $ map (fmap (fmap setFreeVar)) mdl
     ppTerm <- pp term
     printFD4 ppTerm
     termByteCode <- bc term
     return $ termByteCode ++ [PRINTN] ++ [STOP]
   where
-    declsToLetInRecursive :: MonadFD4 m => [Decl Term] -> m Term
-    -- TODO: Cambiar el tipo Nat acordemente
-    declsToLetInRecursive [] = undefined
-    -- TODO: recorrer t para los Global
-    declsToLetInRecursive [Decl pos name t] = return $ Let pos name NatTy t (V pos (Bound 0))
-    declsToLetInRecursive ((Decl pos name t) : k) =
+    declsToLetIn :: MonadFD4 m => [Decl Term] -> m Term
+    declsToLetIn [] = undefined
+    declsToLetIn [Decl pos name t] = return $ Let pos name NatTy t (V pos (Bound 0))
+    declsToLetIn ((Decl pos name t) : k) =
       do
-        kLetInRecursive <- declsToLetInRecursive k
-        return $ Let pos name NatTy t kLetInRecursive
+        kLetInRecursive <- declsToLetIn k
+        return $ Let pos name NatTy t $ close name kLetInRecursive
 
 -- | Toma un bytecode, lo codifica y lo escribe un archivo
 bcWrite :: Bytecode -> FilePath -> IO ()
@@ -267,4 +271,4 @@ runBCstep (PRINTN : c, e, I n : s) =
 runBCstep (JUMP : n : c, e, s) =
   return (drop n c, e, s)
 runBCstep ([], _, _) = failFD4 "Interrupción inesperada: no hay más bytecode pero no se consumió STOP"
-runBCstep (command : c, e, s) = undefined
+runBCstep (command : c, e, s) = failFD4 "ERROR: Comando inesperado."

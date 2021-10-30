@@ -350,12 +350,8 @@ typeCheckPhrase x = do
 bytecompileFile :: MonadFD4 m => FilePath -> m ()
 bytecompileFile f =
   do
-    -- Compilar archivo FD4 azucarado, guardando las
-    -- declaraciones core y los sinonimos de tipos en MonadFD4
-
-    -- leer declaraciones desde MonadFD4
+    -- Compilar archivo FD4 azucarado
     sdecls <- fetchSDecls f
-
     lldecls <- mapM desugarDecl sdecls
     -- generar bytecode
     bytecode <- bytecompileModule (join lldecls)
