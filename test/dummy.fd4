@@ -1,1 +1,3 @@
-let x:Nat = 1
+let fst (a b : Nat) : Nat = ifz a then a else b
+
+let x : Nat = print "hola" (fst 0 2)

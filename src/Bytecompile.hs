@@ -93,9 +93,6 @@ pattern PRINT = 13
 
 pattern PRINTN = 14
 
--- Salta n pasos hacia delante
-pattern JUMP = 15
-
 bc :: MonadFD4 m => Term -> m Bytecode
 bc (V i var) =
   case var of
@@ -136,7 +133,9 @@ bc (IfZ i cond thenTerm elseTerm) =
     condBc <- bc cond
     thenBc <- bc thenTerm
     elseBc <- bc elseTerm
-    return $ condBc ++ [IFZ, length thenBc + 2] ++ thenBc ++ [JUMP, length elseBc] ++ elseBc
+    let thenC = [FUNCTION, (length thenBc + 1)] ++ thenBc ++ [RETURN]
+    let elseC = [FUNCTION, (length elseBc + 1)] ++ elseBc ++ [RETURN]
+    return $ elseC ++ thenC ++ condBc ++ [IFZ]
 bc (Let i name ty term1 term2) =
   do
     bc1 <- bc term1
@@ -191,10 +190,10 @@ runBC byteCode = runBC' byteCode [] []
 runBC' :: MonadFD4 m => Bytecode -> Env -> Stack -> m ()
 runBC' c e s =
   do
-    -- printFD4 $ show (humanReadableBC c, e, s)
+    printFD4 $ show (humanReadableBC c, e, s)
     nextStep <- runBCstep (c, e, s)
     case nextStep of
-      ([], _, _) ->
+      ([], _, s') ->
         do
           printFD4 "Se terminó el código"
           return ()
@@ -214,7 +213,6 @@ humanReadableOpcode IFZ = "IFZ"
 humanReadableOpcode FIX = "FIX"
 humanReadableOpcode PRINT = "PRINT"
 humanReadableOpcode PRINTN = "PRINTN"
-humanReadableOpcode JUMP = "JUMP"
 humanReadableOpcode SHIFT = "SHIFT"
 humanReadableOpcode DROP = "DROP"
 humanReadableOpcode STOP = "STOP"
@@ -270,8 +268,10 @@ runBCstep (PRINTN : c, e, I n : s) =
   do
     printFD4 $ show n
     return (c, e, I n : s)
-runBCstep (JUMP : n : c, e, s) =
-  return (drop n c, e, s)
+runBCstep (IFZ : c, e, (I 0):(Fun env btc):_:s) =
+  runBCstep (btc, e, ((RA env c):s))
+runBCstep (IFZ : c, e, (I _):_:(Fun env btc):s) =
+  runBCstep (btc, e, ((RA env c):s))
 runBCstep ([], _, _) = failFD4 "Interrupción inesperada: no hay más bytecode pero no se consumió STOP"
 runBCstep (command : c, e, s) = 
   do
