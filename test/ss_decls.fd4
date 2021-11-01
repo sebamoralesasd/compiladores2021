@@ -8,8 +8,12 @@ let rec doble (x:Nat) : Nat = ifz x then 0 else succ (succ (doble (pred x)))
 
 let rec ack (m:Nat) (n:Nat) : Nat = ifz m then succ n else (ifz n then ack (pred m) 1 else ack (pred m) (ack m (pred n)))
 
+let seis:Nat = doble (ack (doble 0) (doble (ack 0 0)))
+
+let seisDeNuevo:Nat = doble (ack (doble 0) (doble (ack 0 0)))
+
 type NatXNat = Nat -> Nat
 
 let apply (f: NatXNat) (x: Nat) :Nat = f x
 
-let returnValue:Nat = ack 2 2
+let doce:Nat = seis + seisDeNuevo
