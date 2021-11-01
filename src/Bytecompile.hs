@@ -190,7 +190,7 @@ runBC byteCode = runBC' byteCode [] []
 runBC' :: MonadFD4 m => Bytecode -> Env -> Stack -> m ()
 runBC' c e s =
   do
-    printFD4 $ show (humanReadableBC c, e, s)
+    --printFD4 $ show (humanReadableBC c, e, s)
     nextStep <- runBCstep (c, e, s)
     case nextStep of
       ([], _, s') ->
@@ -238,10 +238,6 @@ runBCstep (ADD : c, e, I n : I m : s) =
   return (c, e, I (m + n) : s)
 runBCstep (SUB : c, e, I n : I m : s) =
   return (c, e, I (max 0 (m - n)) : s)
-runBCstep (IFZ : len : c, e, I n : s) =
-    if n == 0
-      then return (c, e, s)
-      else return (drop len c, e, s)
 runBCstep (FIX : c, e, Fun e_fix c_f : s) =
   return (c, e, e_fix:s)
   where
