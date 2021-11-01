@@ -264,6 +264,7 @@ runBCstep (PRINTN : c, e, I n : s) =
   do
     printFD4 $ show n
     return (c, e, I n : s)
+-- TODO: preguntar si los entornos son iguales
 runBCstep (IFZ : c, e, (I 0):(Fun env btc):_:s) =
   runBCstep (btc, e, ((RA env c):s))
 runBCstep (IFZ : c, e, (I _):_:(Fun env btc):s) =
