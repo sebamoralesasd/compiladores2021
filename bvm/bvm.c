@@ -284,12 +284,33 @@ void run(code init_c)
 			break;
 		}
 
-/*
 		case TAILCALL: {
+			/*
+				Llamada de cola.
+			*/
+
+			value val = *--s;
+
+			struct clo closure = (*s--).clo;
+
+			c = closure.clo_body;
+			e = env_push(closure.clo_env, val);
+			break;
 		}
-*/
+
 		case IFZ: {
-			quit("IFZ no implementado");
+			// quit("IFZ no implementado");
+
+			/* Se chequea si el valor de la pila es o no 0.
+			 * Si es 0, no se hace nada, si no, se salta
+			 * length posiciones.
+			*/
+			uint32_t cond = (*--s).i;
+			int length = *c++;
+
+			if(cond)
+				c += length;
+
 			break;
         }
         
