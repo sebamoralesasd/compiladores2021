@@ -93,6 +93,10 @@ pattern PRINT = 13
 
 pattern PRINTN = 14
 
+pattern JUMP = 15
+
+pattern TAILCALL = 16
+
 bc :: MonadFD4 m => Term -> m Bytecode
 bc (V i var) =
   case var of
@@ -133,9 +137,7 @@ bc (IfZ i cond thenTerm elseTerm) =
     condBc <- bc cond
     thenBc <- bc thenTerm
     elseBc <- bc elseTerm
-    let thenC = [FUNCTION, (length thenBc + 1)] ++ thenBc ++ [RETURN]
-    let elseC = [FUNCTION, (length elseBc + 1)] ++ elseBc ++ [RETURN]
-    return $ elseC ++ thenC ++ condBc ++ [IFZ]
+    return $ condBc ++ [IFZ, length thenBc + 2] ++ thenBc ++ [JUMP, length elseBc] ++ elseBc
 bc (Let i name ty term1 term2) =
   do
     bc1 <- bc term1
@@ -241,7 +243,7 @@ runBCstep (SUB : c, e, I n : I m : s) =
 runBCstep (FIX : c, e, Fun e_fix c_f : s) =
   return (c, e, e_fix:s)
   where
-    -- TODO: revisar si efectivamente genera el nudo o el shadowing interfiere
+    -- Efectivamente genera el nudo, ignorar shadowing
     e_fix = Fun (e_fix:e) c_f
 runBCstep ([STOP], e, s) = return ([], e, s)
 runBCstep (SHIFT : c, e, v : s) =
@@ -264,11 +266,12 @@ runBCstep (PRINTN : c, e, I n : s) =
   do
     printFD4 $ show n
     return (c, e, I n : s)
--- TODO: preguntar si los entornos son iguales
-runBCstep (IFZ : c, e, (I 0):(Fun env btc):_:s) =
-  runBCstep (btc, e, ((RA env c):s))
-runBCstep (IFZ : c, e, (I _):_:(Fun env btc):s) =
-  runBCstep (btc, e, ((RA env c):s))
+runBCstep (IFZ : len : c, e, I n : s) =
+  if n == 0
+    then return (c, e, s)
+    else return (drop len c, e, s)
+runBCstep (JUMP : n : c, e, s) =
+  return (drop n c, e, s)
 runBCstep ([], _, _) = failFD4 "Interrupción inesperada: no hay más bytecode pero no se consumió STOP"
 runBCstep (command : c, e, s) = 
   do
