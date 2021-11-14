@@ -21,6 +21,7 @@ import Lang
 import MonadFD4
 import PPrint (pp)
 import Subst (close)
+import GHC.Char (chr)
 
 type Opcode = Int
 
@@ -97,6 +98,25 @@ pattern JUMP = 15
 
 pattern TAILCALL = 16
 
+bcTailCall :: MonadFD4 m => Term -> m Bytecode
+bcTailCall (App _ a b) = do
+  aBC <- bc a
+  bBC <- bc b
+  return $ aBC ++ bBC ++ [TAILCALL]
+bcTailCall (IfZ _ condition thenTerm elseTerm) = do
+  conditionBC <- bc condition
+  thenTermBC <- bcTailCall thenTerm
+  elseTermBC <- bcTailCall elseTerm
+  return $ conditionBC ++ [IFZ, length thenTermBC] ++ thenTermBC ++ elseTermBC
+bcTailCall (Let _ name ty innerTerm term) = do
+  innerTermBC <- bc innerTerm
+  termBC <- bcTailCall term
+  return $ innerTermBC ++ [SHIFT] ++ termBC
+bcTailCall t = do 
+  termBC <- bc t
+  return $ termBC ++ [RETURN]
+
+
 bc :: MonadFD4 m => Term -> m Bytecode
 bc (V i var) =
   case var of
@@ -106,7 +126,7 @@ bc (V i var) =
 bc (Const _ (CNat n)) = return [CONST, n]
 bc (Lam i name ty term) =
   do
-    termBC <- bc term
+    termBC <- bcTailCall term
     let innerFunction = termBC ++ [RETURN]
     return $ [FUNCTION, length innerFunction] ++ innerFunction
 bc (App i t1 t2) =
@@ -252,16 +272,16 @@ runBCstep (DROP : c, v : e, s) =
   return (c, e, s)
 runBCstep (PRINT : c', e, s) =
   do
-    c <- consume c'
+    let (toBePrinted, c) = splitOnValue NULL c' 
+    printFD4 $ show $ map chr toBePrinted
     return (c, e, s)
-  where
-    consume :: MonadFD4 m => Bytecode -> m Bytecode
-    consume (NULL : c) = return c
-    consume (x_i : c) =
-      do
-        printFD4 $ show x_i
-        consume c
-    consume _ = undefined
+    where 
+      splitOnValue value (x:xs)=
+        if x == value
+        then ([], xs)
+        else
+          let (a, b) = splitOnValue value xs in (x:a, b)
+      splitOnValue _ [] = ([], [])
 runBCstep (PRINTN : c, e, I n : s) =
   do
     printFD4 $ show n
@@ -272,6 +292,8 @@ runBCstep (IFZ : len : c, e, I n : s) =
     else return (drop len c, e, s)
 runBCstep (JUMP : n : c, e, s) =
   return (drop n c, e, s)
+runBCstep (TAILCALL: _, _, v : Fun e_g c_g : RA e c: s) = 
+  return (c_g, v : e_g, RA e c : s)
 runBCstep ([], _, _) = failFD4 "Interrupción inesperada: no hay más bytecode pero no se consumió STOP"
 runBCstep (command : c, e, s) = 
   do
