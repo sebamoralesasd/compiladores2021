@@ -273,7 +273,7 @@ runBCstep (DROP : c, v : e, s) =
 runBCstep (PRINT : c', e, s) =
   do
     let (toBePrinted, c) = splitOnValue NULL c' 
-    printFD4 $ show $ map chr toBePrinted
+    printFD4 $ map chr toBePrinted
     return (c, e, s)
     where 
       splitOnValue value (x:xs)=

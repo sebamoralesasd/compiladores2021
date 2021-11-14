@@ -291,7 +291,7 @@ void run(code init_c)
 
 			value val = *--s;
 
-			struct clo closure = (*s--).clo;
+			struct clo closure = (*--s).clo;
 
 			c = closure.clo_body;
 			e = env_push(closure.clo_env, val);
