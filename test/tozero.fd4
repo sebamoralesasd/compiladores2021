@@ -1,0 +1,3 @@
+let rec tozero (m: Nat) : Nat = ifz m then m else (tozero (m-1))
+
+let x : Nat = tozero 5

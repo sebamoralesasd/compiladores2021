@@ -1,0 +1,5 @@
+let fst (a b : Nat) : Nat = ifz a then a else b
+
+let printedValue:Nat = print "hola" 0
+
+let x : Nat = print "mundo" (fst 0 2)

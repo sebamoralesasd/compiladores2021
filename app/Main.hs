@@ -36,7 +36,8 @@ import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
 import TypeChecker ( tc, tcDecl )
-import MonadFD4 (printFD4)
+import Bytecompile
+import Data.List.Extra (replace)
 
 prompt :: String
 prompt = "FD4> "
@@ -47,10 +48,10 @@ prompt = "FD4> "
 data Mode =
     Interactive
   | Typecheck
+  | Bytecompile
+  | RunVM
 
 -- | InteractiveCEK
--- | Bytecompile 
--- | RunVM
 -- | CC
 -- | Canon
 -- | LLVM
@@ -58,12 +59,12 @@ data Mode =
 
 -- | Parser de banderas
 parseMode :: Parser (Mode,Bool)
-parseMode = (,) <$> 
+parseMode = (,) <$>
       (flag' Typecheck ( long "typecheck" <> short 't' <> help "Chequear tipos e imprimir el término")
   -- <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
-  -- <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
-  -- <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
-      <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
+     <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
+     <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
+     <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
   -- <|> flag' CC ( long "cc" <> short 'c' <> help "Compilar a código C")
   -- <|> flag' Canon ( long "canon" <> short 'n' <> help "Imprimir canonicalización")
   -- <|> flag' LLVM ( long "llvm" <> short 'l' <> help "Imprimir LLVM resultante")
@@ -72,7 +73,7 @@ parseMode = (,) <$>
    <*> pure False
    -- reemplazar por la siguiente línea para habilitar opción
    -- <*> flag False True (long "optimize" <> short 'o' <> help "Optimizar código")
-  
+
 -- | Parser de opciones general, consiste de un modo y una lista de archivos a procesar
 parseArgs :: Parser (Mode,Bool, [FilePath])
 parseArgs = (\(a,b) c -> (a,b,c)) <$> parseMode <*> many (argument str (metavar "FILES..."))
@@ -86,16 +87,16 @@ main = execParser opts >>= go
      <> header "Compilador de FD4 de la materia Compiladores 2021" )
 
     go :: (Mode,Bool,[FilePath]) -> IO ()
-    go (Interactive,_,files) = 
+    go (Interactive,_,files) =
               do runFD4 (runInputT defaultSettings (repl files))
                  return ()
     go (Typecheck,opt, files) =
               runOrFail $ mapM_ (typecheckFile opt) files
     -- go (InteractiveCEK,_, files) = undefined
-    -- go (Bytecompile,_, files) =
-    --           runOrFail $ mapM_ bytecompileFile files
-    -- go (RunVM,_,files) =
-    --           runOrFail $ mapM_ bytecodeRun files
+    go (Bytecompile,_, files) =
+               runOrFail $ mapM_ bytecompileFile files
+    go (RunVM,_,files) =
+              runOrFail $ mapM_ bytecodeRun files
     -- go (CC,_, files) =
     --           runOrFail $ mapM_ ccFile files
     -- go (Canon,_, files) =
@@ -149,52 +150,86 @@ loadFile f = do
     setLastFile filename
     parseIO filename program x
 
+fetchSDecls :: MonadFD4 m => FilePath -> m [SDecl]
+fetchSDecls f = do
+  printFD4 ("Abriendo "++f++"...")
+  let filename = reverse(dropWhile isSpace (reverse f))
+  x <- liftIO $ catch (readFile filename)
+    (\e -> do
+             let err = show (e :: IOException)
+             hPutStrLn stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err)
+             return "")
+  parseIO filename program x
+
 compileFile ::  MonadFD4 m => FilePath -> m ()
 compileFile f = do
-    printFD4 ("Abriendo "++f++"...")
-    let filename = reverse(dropWhile isSpace (reverse f))
-    x <- liftIO $ catch (readFile filename)
-               (\e -> do let err = show (e :: IOException)
-                         hPutStrLn stderr ("No se pudo abrir el archivo " ++ filename ++ ": " ++ err)
-                         return "")
-    decls <- parseIO filename program x
-    mapM_ handleDecl decls
+  sDecls <- fetchSDecls f
+  mapM_ handleDecl sDecls
 
 typecheckFile ::  MonadFD4 m => Bool -> FilePath -> m ()
 typecheckFile opt f = do
     printFD4  ("Chequeando "++f)
-    decls <- loadFile f
-    ppterms <- mapM (typecheckDecl >=> ppDecl) decls
+    sdecls <- loadFile f
+    ppterms <- mapM typecheckSDeclAndPP sdecls
     mapM_ printFD4 ppterms
+
+typecheckSDeclAndPP :: MonadFD4 m => SDecl -> m String
+typecheckSDeclAndPP sinTy@SinTy{} = undefined -- TODO: definir el pp para sinTy
+typecheckSDeclAndPP sdecl@SDecl{} =
+  do
+    listD <- desugarDecl sdecl
+    case listD of
+      [decl] -> do
+        typecheckDecl decl
+        ppDecl decl
+      _ -> failFD4 "error: ver despues"
 
 parseIO ::  MonadFD4 m => String -> P a -> String -> m a
 parseIO filename p x = case runP p x filename of
                   Left e  -> throwError (ParseErr e)
                   Right r -> return r
 
-typecheckDecl :: MonadFD4 m => SDecl -> m (Decl Term)
-typecheckDecl (SDecl (Decl p x t)) = do
-        tt <- (elab t)
-        let dd = (Decl p x tt)
+typecheckDecl :: MonadFD4 m => Decl Term -> m ()
+typecheckDecl dd@(Decl p x t) =
+  do
         tcDecl dd
-        return dd
+        return ()
 
 handleDecl ::  MonadFD4 m => SDecl -> m ()
-handleDecl ( SinTy pos name sty ) = 
+handleDecl sinTy@SinTy{} =
+  do
+    desugarDecl sinTy
+    return ()
+handleDecl sdecl = do
+        listD <- desugarDecl sdecl
+        case listD of
+          [Decl p x tt] ->
+            do
+              typecheckDecl (Decl p x tt)
+              te <- eval tt
+              addDecl (Decl p x te)
+          _ -> failFD4 "TODO"
+
+------------------
+desugarDecl :: MonadFD4 m => SDecl -> m [Decl Term]
+desugarDecl ( SinTy pos name sty ) =
   do
     -- TODO cambiar por interfaz del estilo elabSTy
     printFD4 "Creare un alias"
     result <- lookupSTy name
     case result of
       Just ty -> failPosFD4 pos $ "El alias '" ++ name ++ "' ya se definió anteriormente como " -- TODO: Agregar ty para error más expresivo
-      Nothing -> do 
+      Nothing -> do
                     ty <- desugarTy sty
                     addsupTy name ty
+                    return []
+desugarDecl sDecl@(SDecl decl) =
+  do
+    let (Decl i name snTerm) = getDecl sDecl
+    term <- elab snTerm
+    return [Decl i name term]
+------------------
 
-handleDecl d = do
-        (Decl p x tt) <- typecheckDecl d
-        te <- eval tt
-        addDecl (Decl p x te)
 
 data Command = Compile CompileForm
              | PPrint String
@@ -213,7 +248,7 @@ data InteractiveCommand = Cmd [String] String (String -> Command) String
 -- | Parser simple de comando interactivos
 interpretCommand :: String -> IO Command
 interpretCommand x
-  =  if isPrefixOf ":" x then
+  =  if ":" `isPrefixOf` x then
        do  let  (cmd,t')  =  break isSpace x
                 t         =  dropWhile isSpace t'
            --  find matching commands
@@ -276,7 +311,7 @@ compilePhrase ::  MonadFD4 m => String -> m ()
 compilePhrase x =
   do
     dot <- parseIO "<interactive>" declOrTm x
-    case dot of 
+    case dot of
       Left d  -> handleDecl d
       Right t -> handleTerm t
 
@@ -294,9 +329,9 @@ printPhrase x =
   do
     x' <- parseIO "<interactive>" tm x
     ex <- elab x'
-    t  <- case x' of 
+    t  <- case x' of
            (SV p f) -> maybe ex id <$> lookupDecl f
-           _       -> return ex  
+           _       -> return ex
     printFD4 "NTerm:"
     printFD4 (show x')
     printFD4 "\nTerm:"
@@ -309,3 +344,24 @@ typeCheckPhrase x = do
          s <- get
          ty <- tc tt (tyEnv s)
          printFD4 (ppTy ty)
+
+-- TODO: Refactor Main
+-- TODO: Revisar si se puede fusionar con loadFile, handleDecl, y handleTerm para no tener duplicación de código
+bytecompileFile :: MonadFD4 m => FilePath -> m ()
+bytecompileFile f =
+  do
+    -- Compilar archivo FD4 azucarado
+    sdecls <- fetchSDecls f
+    lldecls <- mapM desugarDecl sdecls
+    -- generar bytecode
+    bytecode <- bytecompileModule (join lldecls)
+    -- escribir bytecode a un archivo
+    printFD4 $ show bytecode
+    printFD4 $ show $ humanReadableBC bytecode
+    liftIO $ bcWrite bytecode (replace ".fd4" ".byte" f)
+
+bytecodeRun :: MonadFD4 m => FilePath -> m ()
+bytecodeRun file = 
+  do
+    byteCode <- liftIO (bcRead file)
+    runBC byteCode

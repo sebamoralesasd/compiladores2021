@@ -26,6 +26,7 @@ module MonadFD4 (
   eraseLastFileDecls,
   failPosFD4,
   failFD4,
+  getDecls,
   addDecl,
   addTy,
   addsupTy,
@@ -69,6 +70,9 @@ setLastFile filename = modify (\s -> s {lfile = filename})
 
 getLastFile :: MonadFD4 m => m FilePath
 getLastFile = gets lfile
+
+getDecls :: MonadFD4 m => m [Decl Term]
+getDecls = gets glb
 
 addDecl :: MonadFD4 m => Decl Term -> m ()
 addDecl d = modify (\s -> s { glb = d : glb s, cantDecl = cantDecl s + 1 })

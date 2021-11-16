@@ -52,6 +52,10 @@ data Decl a = Decl
 
 data SDecl = SDecl (Decl SNTerm) | SinTy Pos Name STy
 
+getDecl :: SDecl -> Decl SNTerm
+getDecl (SDecl d) = d
+getDecl sty = undefined
+
 type Binder = (Name, STy)
 -- | AST de los términos con azúcar sintáctico. 
 data STm info var =
