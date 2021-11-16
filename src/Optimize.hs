@@ -11,15 +11,17 @@ optimizeTerm (BinaryOp i binaryOp (Const _ (CNat x)) (Const _ (CNat y))) =
 optimizeTerm (BinaryOp i binaryOp term (Const _ (CNat 0))) = term
 -- 0 + x = x
 optimizeTerm (BinaryOp i Add (Const _ (CNat 0)) x) = x
--- 0 - x = 0. TODO: acomodar printing y revisar divergencia
-optimizeTerm (BinaryOp i Sub (Const _ (CNat 0)) x) = Const i (CNat 0)
-
-optimizeTerm (IfZ _ (Const _ (CNat 0)) thenTerm _) = thenTerm
-optimizeTerm (IfZ _ (Const _ (CNat _)) _ elseTerm) = elseTerm
+-- 0 - x = 0. TODO: acomodar printing 
+-- optimizeTerm (BinaryOp i Sub (Const _ (CNat 0)) x) = Const i (CNat 0)
 
 {- Constant Propagation -}
 optimizeTerm (Let i name ty x@(Const _ (CNat _)) term) =
     subst x term
 
+{- Other -}
+optimizeTerm (IfZ _ (Const _ (CNat 0)) thenTerm _) = thenTerm
+optimizeTerm (IfZ _ (Const _ (CNat _)) _ elseTerm) = elseTerm
+
 {- Not optimized -}
 optimizeTerm t = t
+
