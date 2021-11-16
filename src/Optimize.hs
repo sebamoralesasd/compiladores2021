@@ -23,5 +23,5 @@ optimizeTerm (IfZ _ (Const _ (CNat 0)) thenTerm _) = thenTerm
 optimizeTerm (IfZ _ (Const _ (CNat _)) _ elseTerm) = elseTerm
 
 {- Not optimized -}
+-- TODO: llamar recursivamente dentro de los terms. Ver de usar Applicative o algo de eso
 optimizeTerm t = t
-
