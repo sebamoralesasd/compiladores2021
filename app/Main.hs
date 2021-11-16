@@ -30,11 +30,14 @@ import Options.Applicative
 import Global ( GlEnv(..) )
 import Errors
 import Lang
+    ( getDecl, Decl(Decl, declName), SDecl(..), SNTerm, STm(SV), Term )
 import Parse ( P, tm, program, declOrTm, runP )
 import Elab ( elab, desugarTy )
 import Eval ( eval )
 import PPrint ( pp , ppTy, ppDecl )
 import MonadFD4
+import MonadEval
+import RunFD4
 import TypeChecker ( tc, tcDecl )
 import Bytecompile
 import Data.List.Extra (replace)
@@ -50,8 +53,12 @@ data Mode =
   | Typecheck
   | Bytecompile
   | RunVM
-
--- | InteractiveCEK
+  | InteractiveCEK
+  deriving Show
+-- | Bytecompile 
+  -- | Bytecompile 
+-- | Bytecompile 
+-- | RunVM
 -- | CC
 -- | Canon
 -- | LLVM
@@ -61,10 +68,10 @@ data Mode =
 parseMode :: Parser (Mode,Bool)
 parseMode = (,) <$>
       (flag' Typecheck ( long "typecheck" <> short 't' <> help "Chequear tipos e imprimir el término")
-  -- <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
+     <|> flag' InteractiveCEK (long "interactiveCEK" <> short 'k' <> help "Ejecutar interactivamente en la CEK")
      <|> flag' Bytecompile (long "bytecompile" <> short 'm' <> help "Compilar a la BVM")
      <|> flag' RunVM (long "runVM" <> short 'r' <> help "Ejecutar bytecode en la BVM")
-     <|> flag Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
+     <|> flag  Interactive Interactive ( long "interactive" <> short 'i' <> help "Ejecutar en forma interactiva")
   -- <|> flag' CC ( long "cc" <> short 'c' <> help "Compilar a código C")
   -- <|> flag' Canon ( long "canon" <> short 'n' <> help "Imprimir canonicalización")
   -- <|> flag' LLVM ( long "llvm" <> short 'l' <> help "Imprimir LLVM resultante")
@@ -92,7 +99,10 @@ main = execParser opts >>= go
                  return ()
     go (Typecheck,opt, files) =
               runOrFail $ mapM_ (typecheckFile opt) files
-    -- go (InteractiveCEK,_, files) = undefined
+    go (InteractiveCEK,_, files) = 
+      do 
+        runCEK $ CEK (runInputT defaultSettings (repl files))
+        return ()
     go (Bytecompile,_, files) =
                runOrFail $ mapM_ bytecompileFile files
     go (RunVM,_,files) =
@@ -115,7 +125,7 @@ runOrFail m = do
       exitWith (ExitFailure 1)
     Right v -> return v
 
-repl :: (MonadFD4 m, MonadMask m) => [FilePath] -> InputT m ()
+repl :: (MonadEval m, MonadMask m) => [FilePath] -> InputT m ()
 repl args = do
        lift $ catchErrors $ compileFiles args
        s <- lift get
@@ -133,8 +143,8 @@ repl args = do
                        b <- lift $ catchErrors $ handleCommand c
                        maybe loop (`when` loop) b
 
-compileFiles ::  MonadFD4 m => [FilePath] -> m ()
-compileFiles []     = return ()
+compileFiles ::  MonadEval m => [FilePath] -> m ()
+compileFiles []  = return ()
 compileFiles (x:xs) = do
         modify (\s -> s { lfile = x, inter = False })
         compileFile x
@@ -161,12 +171,12 @@ fetchSDecls f = do
              return "")
   parseIO filename program x
 
-compileFile ::  MonadFD4 m => FilePath -> m ()
+compileFile :: MonadEval m => FilePath -> m ()
 compileFile f = do
   sDecls <- fetchSDecls f
   mapM_ handleDecl sDecls
 
-typecheckFile ::  MonadFD4 m => Bool -> FilePath -> m ()
+typecheckFile :: MonadEval m => Bool -> FilePath -> m ()
 typecheckFile opt f = do
     printFD4  ("Chequeando "++f)
     sdecls <- loadFile f
@@ -231,6 +241,8 @@ desugarDecl sDecl@(SDecl decl) =
 ------------------
 
 
+
+-- TODO: agregar comando para evaluación con CEK
 data Command = Compile CompileForm
              | PPrint String
              | Type String
@@ -240,8 +252,9 @@ data Command = Compile CompileForm
              | Help
              | Noop
 
-data CompileForm = CompileInteractive  String
-                 | CompileFile         String
+data CompileForm = CompileInteractive     String
+                 | CompileInteractiveCEK  String
+                 | CompileFile            String
 
 data InteractiveCommand = Cmd [String] String (String -> Command) String
 
@@ -263,6 +276,7 @@ interpretCommand x
                          return Noop
 
      else
+       -- TODO: corregir
        return (Compile (CompileInteractive x))
 
 commands :: [InteractiveCommand]
@@ -274,7 +288,9 @@ commands
        Cmd [":reload"]      ""        (const Reload)         "Vuelve a cargar el último archivo cargado",
        Cmd [":type"]        "<exp>"   Type           "Chequea el tipo de una expresión",
        Cmd [":quit",":Q"]        ""        (const Quit)   "Salir del intérprete",
-       Cmd [":help",":?"]   ""        (const Help)   "Mostrar esta lista de comandos" ]
+       Cmd [":help",":?"]   ""        (const Help)   "Mostrar esta lista de comandos",
+       Cmd [":cek",":k"]   "<exp>"         (Compile . CompileInteractiveCEK)   "Evaluar usando la máquina CEK" ]
+
 
 helpTxt :: [InteractiveCommand] -> String
 helpTxt cs
@@ -288,7 +304,7 @@ helpTxt cs
 
 -- | 'handleCommand' interpreta un comando y devuelve un booleano
 -- indicando si se debe salir del programa o no.
-handleCommand ::  MonadFD4 m => Command  -> m Bool
+handleCommand ::  MonadEval m => Command -> m Bool
 handleCommand cmd = do
    s@GlEnv {..} <- get
    case cmd of
@@ -300,6 +316,7 @@ handleCommand cmd = do
        Compile c ->
                   do  case c of
                           CompileInteractive e -> compilePhrase e
+                          CompileInteractiveCEK e -> compilePhrase e
                           CompileFile f        -> put (s {lfile=f, cantDecl=0}) >> compileFile f
                       return True
       -- TODO eraseLastFileTypeSinonyms
@@ -307,7 +324,7 @@ handleCommand cmd = do
        PPrint e   -> printPhrase e >> return True
        Type e    -> typeCheckPhrase e >> return True
 
-compilePhrase ::  MonadFD4 m => String -> m ()
+compilePhrase ::  MonadEval m => String -> m ()
 compilePhrase x =
   do
     dot <- parseIO "<interactive>" declOrTm x
@@ -315,12 +332,12 @@ compilePhrase x =
       Left d  -> handleDecl d
       Right t -> handleTerm t
 
-handleTerm ::  MonadFD4 m => SNTerm -> m ()
+handleTerm ::  MonadEval m => SNTerm -> m ()
 handleTerm t = do
          tt <- elab t
          s <- get
          ty <- tc tt (tyEnv s)
-         te <- eval tt
+         te <- evaluate tt
          ppte <- pp te
          printFD4 (ppte ++ " : " ++ ppTy ty)
 
